@@ -1,6 +1,6 @@
 import numpy as np
 import math
-import MotionBasedMultiObjectTrackingExample
+import object_tracker
 
 def Calculate_multiple_tracks_paths3_Xj_with_matching(age_id_log, centroid_point_log):
     track_x = []

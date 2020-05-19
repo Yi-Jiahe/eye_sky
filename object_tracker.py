@@ -69,8 +69,10 @@ def imfill(im_in):
 def motion_based_multi_object_tracking(filename):
     cap, fgbg, detector, out_original, out_masked = setup_system_objects(filename)
 
-    global FPS
+    global FPS, FRAME_WIDTH, FRAME_HEIGHT
     FPS = cap.get(cv2.CAP_PROP_FPS)
+    FRAME_WIDTH = int(cap.get(3))
+    FRAME_HEIGHT = int(cap.get(4))
 
     tracks = []
 
@@ -80,8 +82,8 @@ def motion_based_multi_object_tracking(filename):
     centroids_log = []
     tracks_log = []
 
-    age_id_log = []
-    centroid_point_log = []
+    good_tracks_log = []
+    good_tracks_log.append([FRAME_WIDTH, FRAME_HEIGHT])
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -122,15 +124,10 @@ def motion_based_multi_object_tracking(filename):
             tracks = delete_lost_tracks(tracks)
             next_id = create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes)
 
-            display_tracking_results(frame, masked, tracks, frame_count, out_original, out_masked)
+            good_tracks = display_tracking_results(frame, masked, tracks, frame_count, out_original, out_masked)
 
-            age_id_log.append([])
-            centroid_point_log.append([])
-            for i in range(len(tracks)):
-                track = tracks[i]
-
-                age_id_log[frame_count].append([track.id, track.age])
-                centroid_point_log[frame_count].append(track.kalmanFilter.x[:2])
+            if good_tracks:
+                good_tracks_log.append(good_tracks)
 
             frame_count += 1
 
@@ -144,7 +141,7 @@ def motion_based_multi_object_tracking(filename):
     out_original.release()
     cv2.destroyAllWindows()
 
-    return centroid_point_log
+    return good_tracks_log
 
 
 # Create VideoCapture object to extract frames from,
@@ -389,8 +386,10 @@ def create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes):
 
 
 def display_tracking_results(frame, masked, tracks, counter, out_original, out_masked):
-    min_track_age = 0 * FPS    # seconds * FPS to give number of frames in seconds
-    min_visible_count = 0 * FPS
+    min_track_age = 1.0 * FPS    # seconds * FPS to give number of frames in seconds
+    min_visible_count = 0.7 * FPS
+
+    good_tracks = []
 
     masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2RGB)
 
@@ -399,6 +398,9 @@ def display_tracking_results(frame, masked, tracks, counter, out_original, out_m
             if track.age > min_track_age and track.totalVisibleCount > min_visible_count:
                 centroid = track.kalmanFilter.x[:2]
                 size = track.size
+
+                good_tracks.append([track.id, track.age, size, (centroid[0], centroid[1])])
+
                 rect_top_left = (int(centroid[0] - size/2), int(centroid[1] - size/2))
                 rect_bottom_right = (int(centroid[0] + size/2), int(centroid[1] + size/2))
                 colour = (0, 0, 255)
@@ -426,5 +428,7 @@ def display_tracking_results(frame, masked, tracks, counter, out_original, out_m
     cv2.imshow('frame', frame)
     cv2.imshow('masked', masked)
 
+    return good_tracks
 
-motion_based_multi_object_tracking('Kimhoe_phone.mp4')
+
+# motion_based_multi_object_tracking('Kimhoe_phone.mp4')
