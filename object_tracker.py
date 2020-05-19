@@ -4,6 +4,8 @@ from filterpy.kalman import KalmanFilter
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
 
+import time
+
 
 class Track:
     def __init__(self, track_id, size):
@@ -67,12 +69,19 @@ def imfill(im_in):
 
 
 def motion_based_multi_object_tracking(filename):
-    cap, fgbg, detector, out_original, out_masked = setup_system_objects(filename)
+    cap = cv2.VideoCapture(filename)
 
     global FPS, FRAME_WIDTH, FRAME_HEIGHT
-    FPS = cap.get(cv2.CAP_PROP_FPS)
+    FPS = int(cap.get(cv2.CAP_PROP_FPS))
     FRAME_WIDTH = int(cap.get(3))
     FRAME_HEIGHT = int(cap.get(4))
+
+    out_original = cv2.VideoWriter('out_original.mp4', cv2.VideoWriter_fourcc(*'mp4v'),
+                                   FPS, (FRAME_WIDTH, FRAME_HEIGHT))
+    out_masked = cv2.VideoWriter('out_masked.mp4', cv2.VideoWriter_fourcc(*'mp4v'),
+                                 FPS, (FRAME_WIDTH, FRAME_HEIGHT))
+
+    fgbg, detector = setup_system_objects(filename)
 
     tracks = []
 
@@ -89,42 +98,66 @@ def motion_based_multi_object_tracking(filename):
         ret, frame = cap.read()
 
         if ret:
-            if frame_count == 0:
-                frame_before = frame
-            elif frame_count >= 1:
-                image1 = cv2.cvtColor(frame_before, cv2.COLOR_BGR2GRAY)
-                image2 = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-                image_points1 = cv2.goodFeaturesToTrack(image1, maxCorners=100, qualityLevel=0.01, minDistance=10)
+            start_time = time.time()
 
-                image_points2, status, err = cv2.calcOpticalFlowPyrLK(image1, image2, image_points1, None)
+            # if frame_count == 0:
+            #     frame_before = frame
+            # elif frame_count >= 1:
+            #     image1 = cv2.cvtColor(frame_before, cv2.COLOR_BGR2GRAY)
+            #     image2 = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            #
+            #     image_points1 = cv2.goodFeaturesToTrack(image1, maxCorners=100, qualityLevel=0.01, minDistance=10)
+            #
+            #     image_points2, status, err = cv2.calcOpticalFlowPyrLK(image1, image2, image_points1, None)
+            #
+            #     idx = np.where(status == 1)[0]
+            #     image_points1 = image_points1[idx]
+            #     image_points2 = image_points2[idx]
+            #
+            #     m = cv2.estimateAffinePartial2D(image_points1, image_points2)[0]
+            #     rows, columns = image1.shape
+            #     frame_stabilized = cv2.warpAffine(frame, m, (columns, rows))
+            #
+            #     frame_before = frame
+            #     frame = frame_stabilized
 
-                idx = np.where(status == 1)[0]
-                image_points1 = image_points1[idx]
-                image_points2 = image_points2[idx]
-
-                m = cv2.estimateAffinePartial2D(image_points1, image_points2)[0]
-                rows, columns = image1.shape
-                frame_stabilized = cv2.warpAffine(frame, m, (columns, rows))
-
-                frame_before = frame
-                frame = frame_stabilized
+            calibration_time = time.time()
 
             centroids, sizes, masked = detect_objects(frame, fgbg, detector)
+            detection_time = time.time()
             centroids_log.append(centroids)
 
             predict_new_locations_of_tracks(tracks)
+            prediction_time = time.time()
 
             assignments, unassigned_tracks, unassigned_detections = detection_to_track_assignment(tracks, centroids)
+            assignment_time = time.time()
 
             update_assigned_tracks(assignments, tracks, centroids, sizes)
+            update_time = time.time()
             tracks_log.append(tracks)
 
             update_unassigned_tracks(unassigned_tracks, tracks)
+            update_unassigned_time = time.time()
             tracks = delete_lost_tracks(tracks)
+            deletion_time = time.time()
             next_id = create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes)
+            creation_time = time.time()
 
             good_tracks = display_tracking_results(frame, masked, tracks, frame_count, out_original, out_masked)
+            display_time = time.time()
+
+            print(f"The frame took {display_time - start_time}ms in total.\n"
+                  f"Camera stabilization took {calibration_time - start_time}ms.\n"
+                  f"Object detection took {detection_time - calibration_time}ms.\n"
+                  f"Prediction took {prediction_time - calibration_time}ms.\n"
+                  f"Assignment took {assignment_time - prediction_time}ms.\n"
+                  f"Updating took {update_time - assignment_time}ms.\n"
+                  f"Updating unassigned tracks took {update_unassigned_time - update_time}.\n"
+                  f"Deletion took {deletion_time - update_unassigned_time}ms.\n"
+                  f"Track creation took {creation_time - deletion_time}ms.\n"
+                  f"Display took {display_time - creation_time}ms.\n\n")
 
             if good_tracks:
                 good_tracks_log.append(good_tracks)
@@ -148,10 +181,9 @@ def motion_based_multi_object_tracking(filename):
 # background subtractor object and blob detector objects for object detection
 # and VideoWriters for output videos
 def setup_system_objects(filename):
-    cap = cv2.VideoCapture(filename)
 
-    fgbg = cv2.createBackgroundSubtractorMOG2(history=120, varThreshold=32, detectShadows=False)
-    fgbg.setBackgroundRatio(0.3)
+    fgbg = cv2.createBackgroundSubtractorMOG2(history=int(0.2*FPS), varThreshold=32, detectShadows=False)
+    fgbg.setBackgroundRatio(0.1)
     fgbg.setNMixtures(5)
 
     params = cv2.SimpleBlobDetector_Params()
@@ -160,15 +192,7 @@ def setup_system_objects(filename):
     # params.maxArea = 1000
     detector = cv2.SimpleBlobDetector_create(params)
 
-    frame_width = int(cap.get(3))
-    frame_height = int(cap.get(4))
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    out_original = cv2.VideoWriter('out_original.mp4', cv2.VideoWriter_fourcc(*'mp4v'),
-                                   fps, (frame_width, frame_height))
-    out_masked = cv2.VideoWriter('out_masked.mp4', cv2.VideoWriter_fourcc(*'mp4v'),
-                                 fps, (frame_width, frame_height))
-
-    return cap, fgbg, detector, out_original, out_masked
+    return fgbg, detector
 
 
 # Apply image masks to prepare frame for blob detection
@@ -221,18 +245,22 @@ def predict_new_locations_of_tracks(tracks):
 # with detections being located too far from existing tracks being designated as unassigned detections
 # and tracks without any nearby detections being designated as unassigned tracks
 def detection_to_track_assignment(tracks, centroids):
+    # start_time = time.time()
     n, m = len(tracks), len(centroids)
     k, l = min(n, m), max(n, m)
 
     # Create a square 2-D cost matrix with dimensions twice the size of the larger list (detections or tracks)
     cost = np.zeros((l * 2, l * 2))
+    # initialization_time = time.time()
 
     # Calculate the distance of every detection from each track,
     # filling up the rows of the cost matrix (up to column m, the number of detections) corresponding to existing tracks
     for i in range(len(tracks)):
+        start_time_distance_loop = time.time()
         track = tracks[i]
         track_location = track.kalmanFilter.x[:2]
         cost[i, :m] = np.array([distance.euclidean(track_location, centroid) for centroid in centroids])
+    # distance_time = time.time()
 
     cost_of_non_assignment = 20
     unassigned_track_cost = cost_of_non_assignment
@@ -256,6 +284,7 @@ def detection_to_track_assignment(tracks, centroids):
     # This is used to fill the bottom left corner of the cost matrix
     track_padding = np.ones((l + extra_detections, l)) * unassigned_detection_cost
     cost[n:, :l] = track_padding
+    # padding_time = time.time()
 
     # The bottom right corner of the cost matrix, corresponding to dummy detections being matched to dummy tracks
     # is left with 0 cost to ensure that excess dummies are always matched to each other
@@ -264,6 +293,7 @@ def detection_to_track_assignment(tracks, centroids):
     # which are combined into a coordinate within the cost matrix
     row_ind, col_ind = linear_sum_assignment(cost)
     assignments_all = np.column_stack((row_ind, col_ind))
+    # assignment_time = time.time()
 
     # Assignments within the top left corner corresponding to existing tracks and detections
     # are designated as (valid) assignments
@@ -276,6 +306,13 @@ def detection_to_track_assignment(tracks, centroids):
     # are designated as unassigned detections and will generate a new track
     unassigned_detections = assignments_all[
         (assignments_all >= [n, 0]).all(axis=1) & (assignments_all < [l * 2, l]).all(axis=1)]
+    # sorting_time = time.time()
+
+    # print(f"Initialization took {initialization_time - start_time}ms.\n"
+    #       f"Distance measuring took {distance_time - initialization_time}ms.\n"
+    #       f"Padding took {padding_time - distance_time}ms.\n"
+    #       f"Assignment took {assignment_time - padding_time}ms.\n"
+    #       f"Sorting took {sorting_time - assignment_time}\n\n")
 
     return assignments, unassigned_tracks, unassigned_detections
 
