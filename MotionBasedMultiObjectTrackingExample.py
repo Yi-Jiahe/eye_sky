@@ -6,8 +6,8 @@ from scipy.optimize import linear_sum_assignment
 
 
 class Track:
-    def __init__(self, id, size):
-        self.id = id
+    def __init__(self, track_id, size):
+        self.id = track_id
         self.size = size
         # Constant Velocity Model
         self.kalmanFilter = KalmanFilter(dim_x=4, dim_z=2)
@@ -18,10 +18,10 @@ class Track:
         self.consecutiveInvisibleCount = 0
 
 
-#---------------------------------------Start Section------------------------------------------#
+# ---------------------------------------Start Section------------------------------------------#
 # Implementation of imopen from Matlab:
 def imopen(im_in, kernel_size, iterations=1):
-    kernel = np.ones((kernel_size, kernel_size), np.uint8)/(kernel_size^2)
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)/(kernel_size ^ 2)
     im_out = cv2.morphologyEx(im_in, cv2.MORPH_OPEN, kernel, iterations=iterations)
 
     return im_out
@@ -29,7 +29,7 @@ def imopen(im_in, kernel_size, iterations=1):
 
 # Implementation of imclose from Matlab:
 def imclose(im_in, kernel_size, iterations=1):
-    kernel = np.ones((kernel_size, kernel_size), np.uint8)/(kernel_size^2)
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)/(kernel_size ^ 2)
     im_out = cv2.morphologyEx(im_in, cv2.MORPH_CLOSE, kernel, iterations=iterations)
 
     return im_out
@@ -52,7 +52,7 @@ def imfill(im_in):
     h, w = im_th.shape[:2]
     mask = np.zeros((h+2, w+2), np.uint8)
     # cv2.floodFill(im_floodfill, mask, (0, 0), 255)
-    _,_,im_floodfill,_ = cv2.floodFill(im_th, mask, (0, 0), 255)
+    _, _, im_floodfill, _ = cv2.floodFill(im_th, mask, (0, 0), 255)
 
     # Step 3: Invert floodfilled image
     im_floodfill_inv = cv2.bitwise_not(im_floodfill)
@@ -60,10 +60,10 @@ def imfill(im_in):
     # Step 4: Combine the two images to get the foreground image with holes filled in
     # Floodfilled image needs to be trimmed to perform the bitwise or operation.
     # Trimming is done from the outside. I.e. the "Border" is removed
-    im_out = cv2.bitwise_or(im_th, im_floodfill_inv[1:-1,1:-1])
+    im_out = cv2.bitwise_or(im_th, im_floodfill_inv[1:-1, 1:-1])
 
     return im_out
-#---------------------------------------End Section------------------------------------------#
+# ---------------------------------------End Section------------------------------------------#
 
 
 def motion_based_multi_object_tracking(filename):
@@ -75,7 +75,7 @@ def motion_based_multi_object_tracking(filename):
     tracks = []
 
     next_id = 0
-    counter = 0
+    frame_count = 0
 
     centroids_log = []
     tracks_log = []
@@ -87,9 +87,9 @@ def motion_based_multi_object_tracking(filename):
         ret, frame = cap.read()
 
         if ret:
-            if counter == 0:
+            if frame_count == 0:
                 frame_before = frame
-            elif counter >= 1:
+            elif frame_count >= 1:
                 image1 = cv2.cvtColor(frame_before, cv2.COLOR_BGR2GRAY)
                 image2 = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
@@ -122,17 +122,17 @@ def motion_based_multi_object_tracking(filename):
             tracks = delete_lost_tracks(tracks)
             next_id = create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes)
 
-            display_tracking_results(frame, masked, tracks, counter, out_original, out_masked)
+            display_tracking_results(frame, masked, tracks, frame_count, out_original, out_masked)
 
             age_id_log.append([])
             centroid_point_log.append([])
             for i in range(len(tracks)):
                 track = tracks[i]
 
-                age_id_log[counter].append([track.id, track.age])
-                centroid_point_log[counter].append(track.kalmanFilter.x[:2])
+                age_id_log[frame_count].append([track.id, track.age])
+                centroid_point_log[frame_count].append(track.kalmanFilter.x[:2])
 
-            counter += 1
+            frame_count += 1
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -147,6 +147,9 @@ def motion_based_multi_object_tracking(filename):
     return centroid_point_log
 
 
+# Create VideoCapture object to extract frames from,
+# background subtractor object and blob detector objects for object detection
+# and VideoWriters for output videos
 def setup_system_objects(filename):
     cap = cv2.VideoCapture(filename)
 
@@ -171,6 +174,13 @@ def setup_system_objects(filename):
     return cap, fgbg, detector, out_original, out_masked
 
 
+# Apply image masks to prepare frame for blob detection
+# Masks: 1) Increased contrast and brightness to fade out the sky and make objects stand out
+#        2) Background subtractor to remove the stationary background (Converts frame to a binary image)
+#        3) Inversion to make the foreground black for the blob detector to identify foreground objects
+#        4) Closing mask to remove black spots
+# Perform the blob detection on the masked image
+# Return detected blob centroids as well as size
 def detect_objects(frame, fgbg, detector):
     # Adjust contrast and brightness of image to make foreground stand out more
     # alpha used to adjust contrast, where alpha < 1 reduces contrast and alpha > 1 increases it
@@ -208,15 +218,20 @@ def detect_objects(frame, fgbg, detector):
 def predict_new_locations_of_tracks(tracks):
     for track in tracks:
         track.kalmanFilter.predict()
-        # predictedCentroid = track.kalmanFilter.x[:2]
 
 
+# Assigns detections to tracks using Munkre's Algorithm with cost based on euclidean distance,
+# with detections being located too far from existing tracks being designated as unassigned detections
+# and tracks without any nearby detections being designated as unassigned tracks
 def detection_to_track_assignment(tracks, centroids):
     n, m = len(tracks), len(centroids)
     k, l = min(n, m), max(n, m)
 
+    # Create a square 2-D cost matrix with dimensions twice the size of the larger list (detections or tracks)
     cost = np.zeros((l * 2, l * 2))
 
+    # Calculate the distance of every detection from each track,
+    # filling up the rows of the cost matrix (up to column m, the number of detections) corresponding to existing tracks
     for i in range(len(tracks)):
         track = tracks[i]
         track_location = track.kalmanFilter.x[:2]
@@ -236,25 +251,40 @@ def detection_to_track_assignment(tracks, centroids):
         pass
 
     # Padding cost matrix with dummy columns to account for unassigned tracks
+    # This is used to fill the top right corner of the cost matrix
     detection_padding = np.ones((l, l + extra_tracks)) * unassigned_track_cost
     cost[:l, m:] = detection_padding
 
     # Padding cost matrix with dummy rows to account for unassigned detections
+    # This is used to fill the bottom left corner of the cost matrix
     track_padding = np.ones((l + extra_detections, l)) * unassigned_detection_cost
     cost[n:, :l] = track_padding
 
+    # The bottom right corner of the cost matrix, corresponding to dummy detections being matched to dummy tracks
+    # is left with 0 cost to ensure that excess dummies are always matched to each other
+
+    # Perform the assignment, returning the indices of assignments,
+    # which are combined into a coordinate within the cost matrix
     row_ind, col_ind = linear_sum_assignment(cost)
     assignments_all = np.column_stack((row_ind, col_ind))
 
+    # Assignments within the top left corner corresponding to existing tracks and detections
+    # are designated as (valid) assignments
     assignments = assignments_all[(assignments_all < [n, m]).all(axis=1)]
+    # Assignments within the top right corner corresponding to existing tracks matched with dummy detections
+    # are designated as unassigned tracks and will later be regarded as invisible
     unassigned_tracks = assignments_all[
         (assignments_all >= [0, m]).all(axis=1) & (assignments_all < [l, l * 2]).all(axis=1)]
+    # Assignments within the bottom left corner corresponding to detections matched to dummy tracks
+    # are designated as unassigned detections and will generate a new track
     unassigned_detections = assignments_all[
         (assignments_all >= [n, 0]).all(axis=1) & (assignments_all < [l * 2, l]).all(axis=1)]
 
     return assignments, unassigned_tracks, unassigned_detections
 
 
+# Using the coordinates of valid assignments which correspond to the detection and track indices,
+# update the track with the matched detection
 def update_assigned_tracks(assignments, tracks, centroids, sizes):
     for assignment in assignments:
         track_idx = assignment[0]
@@ -271,6 +301,7 @@ def update_assigned_tracks(assignments, tracks, centroids, sizes):
         track.consecutiveInvisibleCount = 0
 
 
+# Existing tracks without a matching detection are aged and considered invisible for the frame
 def update_unassigned_tracks(unassigned_tracks, tracks):
     for unassignedTrack in unassigned_tracks:
         track_idx = unassignedTrack[0]
@@ -281,6 +312,7 @@ def update_unassigned_tracks(unassigned_tracks, tracks):
         track.consecutiveInvisibleCount += 1
 
 
+# If any track has been invisible for too long, or generated by a flash, it will be removed from the list of tracks
 def delete_lost_tracks(tracks):
     if len(tracks) == 0:
         return tracks
@@ -292,6 +324,9 @@ def delete_lost_tracks(tracks):
 
     for track in tracks:
         visibility = track.totalVisibleCount/track.age
+        # A new created track with a low visibility is likely to have been generated by noise and is to be removed
+        # Tracks that have not been seen for too long (The threshold determined by the reliability of the filter)
+        # cannot be accurately located and are also be removed
         if (track.age < age_threshold and visibility < 0.8) \
                 or track.consecutiveInvisibleCount >= invisible_for_too_long:
             tracks_to_be_removed.append(track)
@@ -301,6 +336,7 @@ def delete_lost_tracks(tracks):
     return tracks
 
 
+# Detections not assigned an existing track are given their own track, initialized with the location of the detection
 def create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes):
     for unassignedDetection in unassigned_detections:
         detection_idx = unassignedDetection[1]
@@ -363,17 +399,17 @@ def display_tracking_results(frame, masked, tracks, counter, out_original, out_m
             if track.age > min_track_age and track.totalVisibleCount > min_visible_count:
                 centroid = track.kalmanFilter.x[:2]
                 size = track.size
-                rectTopLeft =(int(centroid[0] - size/2), int(centroid[1] - size/2))
-                rectBottomRight = (int(centroid[0] + size/2), int(centroid[1] + size/2))
+                rect_top_left = (int(centroid[0] - size/2), int(centroid[1] - size/2))
+                rect_bottom_right = (int(centroid[0] + size/2), int(centroid[1] + size/2))
                 colour = (0, 0, 255)
                 thickness = 1
-                cv2.rectangle(frame, rectTopLeft, rectBottomRight, colour, thickness)
-                cv2.rectangle(masked, rectTopLeft, rectBottomRight, colour, thickness)
+                cv2.rectangle(frame, rect_top_left, rect_bottom_right, colour, thickness)
+                cv2.rectangle(masked, rect_top_left, rect_bottom_right, colour, thickness)
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 font_scale = 0.5
-                cv2.putText(frame, str(track.id), (rectBottomRight[0], rectTopLeft[1]),
+                cv2.putText(frame, str(track.id), (rect_bottom_right[0], rect_top_left[1]),
                             font, font_scale, colour, thickness, cv2.LINE_AA)
-                cv2.putText(masked, str(track.id), (rectBottomRight[0], rectTopLeft[1]),
+                cv2.putText(masked, str(track.id), (rect_bottom_right[0], rect_top_left[1]),
                             font, font_scale, colour, thickness, cv2.LINE_AA)
 
     out_original.write(frame)
