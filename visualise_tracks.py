@@ -35,4 +35,4 @@ def scalar_to_hex(track_id, max_id):
         return '#%02x%02x%02x' % (255, 0, 255)
 
 
-plot_tracks(motion_based_multi_object_tracking('pan_zoom_sky.mp4'))
+plot_tracks(motion_based_multi_object_tracking('pan_sky_x264.mp4'))

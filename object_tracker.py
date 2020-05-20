@@ -21,10 +21,10 @@ class Track:
         self.consecutiveInvisibleCount = 0
 
 
-# ---------------------------------------Start Section------------------------------------------#
 # Implementation of imopen from Matlab:
 def imopen(im_in, kernel_size, iterations=1):
-    kernel = np.ones((kernel_size, kernel_size), np.uint8)/(kernel_size ^ 2)
+    # kernel = np.ones((kernel_size, kernel_size), np.uint8)/(kernel_size**2)
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)
     im_out = cv2.morphologyEx(im_in, cv2.MORPH_OPEN, kernel, iterations=iterations)
 
     return im_out
@@ -32,7 +32,8 @@ def imopen(im_in, kernel_size, iterations=1):
 
 # Implementation of imclose from Matlab:
 def imclose(im_in, kernel_size, iterations=1):
-    kernel = np.ones((kernel_size, kernel_size), np.uint8)/(kernel_size ^ 2)
+    # kernel = np.ones((kernel_size, kernel_size), np.uint8)/(kernel_size**2)
+    kernel = np.ones((kernel_size, kernel_size), np.uint8)
     im_out = cv2.morphologyEx(im_in, cv2.MORPH_CLOSE, kernel, iterations=iterations)
 
     return im_out
@@ -55,7 +56,8 @@ def imfill(im_in):
     h, w = im_th.shape[:2]
     mask = np.zeros((h+2, w+2), np.uint8)
     # cv2.floodFill(im_floodfill, mask, (0, 0), 255)
-    _, _, im_floodfill, _ = cv2.floodFill(im_th, mask, (0, 0), 255)
+    _, _, im_floodfill, _ = cv2.floodFill(im_th, mask, (0, 0), 125)
+    cv2.imshow('floodfill' ,im_floodfill)
 
     # Step 3: Invert floodfilled image
     im_floodfill_inv = cv2.bitwise_not(im_floodfill)
@@ -63,10 +65,33 @@ def imfill(im_in):
     # Step 4: Combine the two images to get the foreground image with holes filled in
     # Floodfilled image needs to be trimmed to perform the bitwise or operation.
     # Trimming is done from the outside. I.e. the "Border" is removed
-    im_out = cv2.bitwise_or(im_th, im_floodfill_inv[1:-1, 1:-1])
+    # im_out = cv2.bitwise_or(im_th, im_floodfill_inv[1:-1, 1:-1])
+
+    im_out = im_in
 
     return im_out
-# ---------------------------------------End Section------------------------------------------#
+
+
+# Dilates the image multiple times to get of noise in order to get a single large contour for each background object
+# Identify background objects by their shape (non-circular)
+# Creates a copy of the input image which has the background contour filled in
+# Returns the filled image which has the background elements filled in
+def remove_ground(im_in):
+    kernel_dilation = np.ones((5, 5), np.uint8)
+    dilated = cv2.dilate(im_in, kernel_dilation, iterations=12)
+
+    contours, hierarchy = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    background_contours = []
+    for contour in contours:
+        circularity = 4*math.pi*cv2.contourArea(contour)/(cv2.arcLength(contour, True)**2)
+        if circularity <= 0.5:
+            background_contours.append(contour)
+
+    im_out = im_in.copy()
+    cv2.drawContours(im_out, background_contours, -1, 0, -1)
+
+    return im_out
 
 
 def motion_based_multi_object_tracking(filename):
@@ -76,13 +101,15 @@ def motion_based_multi_object_tracking(filename):
     FPS = int(cap.get(cv2.CAP_PROP_FPS))
     FRAME_WIDTH = int(cap.get(3))
     FRAME_HEIGHT = int(cap.get(4))
+    print(f"Video Resolution: {FRAME_WIDTH} by {FRAME_HEIGHT}")
     # The scaling factor is the ratio of the diagonal of the input frame
     # to the video used to test the parameters, which in this case is 848x480
-    SCALE_FACTOR = int(math.sqrt(FRAME_WIDTH ^ 2 + FRAME_HEIGHT ^ 2)/math.sqrt(848 ^ 2 + 480 ^ 2))
+    SCALE_FACTOR = math.sqrt(FRAME_WIDTH**2 + FRAME_HEIGHT**2)/math.sqrt(848**2 + 480**2)
+    print(f"Scaling Factor: {SCALE_FACTOR}")
 
-    out_original = cv2.VideoWriter('out_original.mp4', cv2.VideoWriter_fourcc(*'mp4v'),
+    out_original = cv2.VideoWriter('out_original.mp4', cv2.VideoWriter_fourcc(*'h264'),
                                    FPS, (FRAME_WIDTH, FRAME_HEIGHT))
-    out_masked = cv2.VideoWriter('out_masked.mp4', cv2.VideoWriter_fourcc(*'mp4v'),
+    out_masked = cv2.VideoWriter('out_masked.mp4', cv2.VideoWriter_fourcc(*'h264'),
                                  FPS, (FRAME_WIDTH, FRAME_HEIGHT))
 
     fgbg, detector = setup_system_objects(filename)
@@ -152,16 +179,16 @@ def motion_based_multi_object_tracking(filename):
             good_tracks = display_tracking_results(frame, masked, tracks, frame_count, out_original, out_masked)
             display_time = time.time()
 
-            print(f"The frame took {(display_time - start_time)*1000}ms in total.\n"
-                  f"Camera stabilization took {(calibration_time - start_time)*1000}ms.\n"
-                  f"Object detection took {(detection_time - calibration_time)*1000}ms.\n"
-                  f"Prediction took {(prediction_time - calibration_time)*1000}ms.\n"
-                  f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n"
-                  f"Updating took {(update_time - assignment_time)*1000}ms.\n"
-                  f"Updating unassigned tracks took {(update_unassigned_time - update_time)*1000}.\n"
-                  f"Deletion took {(deletion_time - update_unassigned_time)*1000}ms.\n"
-                  f"Track creation took {(creation_time - deletion_time)*1000}ms.\n"
-                  f"Display took {(display_time - creation_time)*1000}ms.\n\n")
+            # print(f"The frame took {(display_time - start_time)*1000}ms in total.\n"
+            #       f"Camera stabilization took {(calibration_time - start_time)*1000}ms.\n"
+            #       f"Object detection took {(detection_time - calibration_time)*1000}ms.\n"
+            #       f"Prediction took {(prediction_time - calibration_time)*1000}ms.\n"
+            #       f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n"
+            #       f"Updating took {(update_time - assignment_time)*1000}ms.\n"
+            #       f"Updating unassigned tracks took {(update_unassigned_time - update_time)*1000}.\n"
+            #       f"Deletion took {(deletion_time - update_unassigned_time)*1000}ms.\n"
+            #       f"Track creation took {(creation_time - deletion_time)*1000}ms.\n"
+            #       f"Display took {(display_time - creation_time)*1000}ms.\n\n")
 
             if good_tracks:
                 good_tracks_log.append(good_tracks)
@@ -187,7 +214,8 @@ def motion_based_multi_object_tracking(filename):
 def setup_system_objects(filename):
     # varThreshold affects the spottiness of the image. The lower it is, the more smaller spots.
     # The larger it is, these spots will combine into large foreground areas
-    fgbg = cv2.createBackgroundSubtractorMOG2(history=int(15*FPS), varThreshold=64 * SCALE_FACTOR, detectShadows=False)
+    fgbg = cv2.createBackgroundSubtractorMOG2(history=int(15*FPS), varThreshold=64 * SCALE_FACTOR,
+                                              detectShadows=False)
     # Background ratio represents the fraction of the history a frame must be present
     # to be considered part of the background
     # eg. history is 5s, background ratio is 0.1, frames present for 0.5s will be considered background
@@ -198,6 +226,8 @@ def setup_system_objects(filename):
     # params.filterByArea = True
     # params.minArea = 1
     # params.maxArea = 1000
+    params.filterByConvexity = False
+    params.filterByCircularity = False
     detector = cv2.SimpleBlobDetector_create(params)
 
     return fgbg, detector
@@ -206,30 +236,37 @@ def setup_system_objects(filename):
 # Apply image masks to prepare frame for blob detection
 # Masks: 1) Increased contrast and brightness to fade out the sky and make objects stand out
 #        2) Background subtractor to remove the stationary background (Converts frame to a binary image)
-#        3) Inversion to make the foreground black for the blob detector to identify foreground objects
-#        4) Closing mask to remove black spots
+#        3) Further background subtraction by means of contouring around non-circular objects
+#        4) Dilation to fill holes in detected drones
+#        5) Inversion to make the foreground black for the blob detector to identify foreground objects
 # Perform the blob detection on the masked image
 # Return detected blob centroids as well as size
 def detect_objects(frame, fgbg, detector):
     # Adjust contrast and brightness of image to make foreground stand out more
     # alpha used to adjust contrast, where alpha < 1 reduces contrast and alpha > 1 increases it
-    # beta used to increase brightness, scale of -255? to 255
-    masked = cv2.convertScaleAbs(frame, alpha=1, beta=100)
+    # beta used to increase brightness, scale of (-255 to 255) ? Needs confirmation
+    masked = cv2.convertScaleAbs(frame, alpha=1, beta=128)
     # masked = cv2.cvtColor(masked, cv2.COLOR_RGB2GRAY)
 
     # Subtract Background
-    # Learning rate affects how aggressively the algorithm applies the changes to background ratio and stuff
-    # Or so I believe. Adjust it alongside background ratio and history to tune
-    masked = fgbg.apply(masked, learningRate=0.3)
+    # Learning rate affects how often the model is updated
+    # High values > 0.5 tend to lead to patchy output
+    # Found that 0.1 - 0.3 is a good range
+    masked = fgbg.apply(masked, learningRate=-1)
 
-    # Invert frame such that black pixels are foreground
-    masked = cv2.bitwise_not(masked)
+    masked = remove_ground(masked)
 
+    # Morphological Transforms
     # Close to remove black spots
-    masked = imclose(masked, 3, 1)
+    # masked = imclose(masked, 3, 1)
     # Open to remove white holes
     # masked = imopen(masked, 3, 2)
     # masked = imfill(masked)
+    kernel_dilation = np.ones((5, 5), np.uint8)
+    masked = cv2.dilate(masked, kernel_dilation, iterations=3)
+
+    # Invert frame such that black pixels are foreground
+    masked = cv2.bitwise_not(masked)
 
     # Blob detection
     keypoints = detector.detect(masked)
@@ -465,8 +502,7 @@ def display_tracking_results(frame, masked, tracks, counter, out_original, out_m
     # cv2.imwrite('output/frame/' + str(counter) + '.png', frame)
     # cv2.imwrite('output/masked/' + str(counter) + '.png', masked)
 
-    scale = 50
-    window_size = (16*scale, 9*scale)
+    window_size = (int(848), int(480))
     frame = cv2.resize(frame, window_size, interpolation=cv2.INTER_CUBIC)
     masked = cv2.resize(masked, window_size, interpolation=cv2.INTER_CUBIC)
 
