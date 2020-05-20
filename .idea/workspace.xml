@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="5bb5ae62-59bc-44dd-a61b-43525dc61650" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/object_tracker.py" beforeDir="false" afterPath="$PROJECT_DIR$/object_tracker.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -21,26 +22,30 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/object_tracker.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="218">
-              <caret line="79" column="52" selection-start-line="79" selection-start-column="52" selection-end-line="79" selection-end-column="52" />
+            <state relative-caret-position="189">
+              <caret line="220" column="56" lean-forward="true" selection-start-line="220" selection-start-column="56" selection-end-line="220" selection-end-column="56" />
               <folding>
                 <element signature="e#0#10#0" expanded="true" />
+                <element signature="e#9020#9077#0" />
+                <element signature="e#9417#12907#0" />
+                <element signature="e#13125#13517#0" />
+                <element signature="e#13676#13860#0" />
+                <element signature="e#14015#14812#0" />
+                <element signature="e#15018#17046#0" />
+                <element signature="e#17141#18993#0" />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/visualise_tracks.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="184">
-              <caret line="31" column="16" lean-forward="true" selection-start-line="31" selection-start-column="16" selection-end-line="31" selection-end-column="16" />
-              <folding>
-                <element signature="e#5#66#0" expanded="true" />
-              </folding>
+            <state relative-caret-position="82">
+              <caret line="25" column="16" lean-forward="true" selection-start-line="25" selection-start-column="16" selection-end-line="25" selection-end-column="16" />
             </state>
           </provider>
         </entry>
@@ -48,7 +53,7 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/Calculate_multiple_tracks_paths3_Xj_with_matching.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-471">
+            <state relative-caret-position="-479">
               <caret line="2" column="21" selection-start-line="2" selection-start-column="21" selection-end-line="2" selection-end-column="21" />
               <folding>
                 <element signature="e#0#18#0" expanded="true" />
@@ -113,7 +118,7 @@
   </component>
   <component name="PropertiesComponent">
     <property name="SHARE_PROJECT_CONFIGURATION_FILES" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/../Random" />
   </component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
@@ -400,7 +405,7 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/Calculate_multiple_tracks_paths3_Xj_with_matching.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-471">
+        <state relative-caret-position="-479">
           <caret line="2" column="21" selection-start-line="2" selection-start-column="21" selection-end-line="2" selection-end-column="21" />
           <folding>
             <element signature="e#0#18#0" expanded="true" />
@@ -408,23 +413,27 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/visualise_tracks.py">
+    <entry file="file://$PROJECT_DIR$/object_tracker.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="184">
-          <caret line="31" column="16" lean-forward="true" selection-start-line="31" selection-start-column="16" selection-end-line="31" selection-end-column="16" />
+        <state relative-caret-position="189">
+          <caret line="220" column="56" lean-forward="true" selection-start-line="220" selection-start-column="56" selection-end-line="220" selection-end-column="56" />
           <folding>
-            <element signature="e#5#66#0" expanded="true" />
+            <element signature="e#0#10#0" expanded="true" />
+            <element signature="e#9020#9077#0" />
+            <element signature="e#9417#12907#0" />
+            <element signature="e#13125#13517#0" />
+            <element signature="e#13676#13860#0" />
+            <element signature="e#14015#14812#0" />
+            <element signature="e#15018#17046#0" />
+            <element signature="e#17141#18993#0" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/object_tracker.py">
+    <entry file="file://$PROJECT_DIR$/visualise_tracks.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="218">
-          <caret line="79" column="52" selection-start-line="79" selection-start-column="52" selection-end-line="79" selection-end-column="52" />
-          <folding>
-            <element signature="e#0#10#0" expanded="true" />
-          </folding>
+        <state relative-caret-position="82">
+          <caret line="25" column="16" lean-forward="true" selection-start-line="25" selection-start-column="16" selection-end-line="25" selection-end-column="16" />
         </state>
       </provider>
     </entry>

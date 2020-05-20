@@ -181,9 +181,13 @@ def motion_based_multi_object_tracking(filename):
 # background subtractor object and blob detector objects for object detection
 # and VideoWriters for output videos
 def setup_system_objects(filename):
-
-    fgbg = cv2.createBackgroundSubtractorMOG2(history=int(0.2*FPS), varThreshold=32, detectShadows=False)
-    fgbg.setBackgroundRatio(0.1)
+    # varThreshold affects the spottiness of the image. The lower it is, the more smaller spots.
+    # The larger it is, these spots will combine into large foreground areas
+    fgbg = cv2.createBackgroundSubtractorMOG2(history=int(3*FPS), varThreshold=2, detectShadows=False)
+    # Background ratio represents the fraction of the history a frame must be present
+    # to be considered part of the background
+    # eg. history is 5s, background ratio is 0.1, frames present for 0.5s will be considered background
+    fgbg.setBackgroundRatio(0.01)
     fgbg.setNMixtures(5)
 
     params = cv2.SimpleBlobDetector_Params()
@@ -206,19 +210,20 @@ def detect_objects(frame, fgbg, detector):
     # Adjust contrast and brightness of image to make foreground stand out more
     # alpha used to adjust contrast, where alpha < 1 reduces contrast and alpha > 1 increases it
     # beta used to increase brightness, scale of -255? to 255
-    masked = cv2.convertScaleAbs(frame, alpha=2, beta=-50)
+    masked = cv2.convertScaleAbs(frame, alpha=1, beta=100)
     # masked = cv2.cvtColor(masked, cv2.COLOR_RGB2GRAY)
 
     # Subtract Background
     # Learning rate affects how aggressively the algorithm applies the changes to background ratio and stuff
     # Or so I believe. Adjust it alongside background ratio and history to tune
-    masked = fgbg.apply(masked, learningRate=0.1)
+    masked = fgbg.apply(masked, learningRate=0.01)
 
     # Invert frame such that black pixels are foreground
     masked = cv2.bitwise_not(masked)
 
     # Close to remove black spots
-    masked = imclose(masked, 3, 2)
+    # masked = imclose(masked, 3, 1)
+    # masked = imclose(masked, 5, 1)
     # Open to remove white holes
     # masked = imopen(masked, 3, 2)
     # masked = imfill(masked)
@@ -466,6 +471,3 @@ def display_tracking_results(frame, masked, tracks, counter, out_original, out_m
     cv2.imshow('masked', masked)
 
     return good_tracks
-
-
-# motion_based_multi_object_tracking('Kimhoe_phone.mp4')
