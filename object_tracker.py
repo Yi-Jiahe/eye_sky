@@ -1,4 +1,5 @@
 import cv2
+import math
 import numpy as np
 from filterpy.kalman import KalmanFilter
 from scipy.spatial import distance
@@ -71,10 +72,13 @@ def imfill(im_in):
 def motion_based_multi_object_tracking(filename):
     cap = cv2.VideoCapture(filename)
 
-    global FPS, FRAME_WIDTH, FRAME_HEIGHT
+    global FPS, FRAME_WIDTH, FRAME_HEIGHT, SCALE_FACTOR
     FPS = int(cap.get(cv2.CAP_PROP_FPS))
     FRAME_WIDTH = int(cap.get(3))
     FRAME_HEIGHT = int(cap.get(4))
+    # The scaling factor is the ratio of the diagonal of the input frame
+    # to the video used to test the parameters, which in this case is 848x480
+    SCALE_FACTOR = int(math.sqrt(FRAME_WIDTH ^ 2 + FRAME_HEIGHT ^ 2)/math.sqrt(848 ^ 2 + 480 ^ 2))
 
     out_original = cv2.VideoWriter('out_original.mp4', cv2.VideoWriter_fourcc(*'mp4v'),
                                    FPS, (FRAME_WIDTH, FRAME_HEIGHT))
@@ -148,16 +152,16 @@ def motion_based_multi_object_tracking(filename):
             good_tracks = display_tracking_results(frame, masked, tracks, frame_count, out_original, out_masked)
             display_time = time.time()
 
-            print(f"The frame took {display_time - start_time}ms in total.\n"
-                  f"Camera stabilization took {calibration_time - start_time}ms.\n"
-                  f"Object detection took {detection_time - calibration_time}ms.\n"
-                  f"Prediction took {prediction_time - calibration_time}ms.\n"
-                  f"Assignment took {assignment_time - prediction_time}ms.\n"
-                  f"Updating took {update_time - assignment_time}ms.\n"
-                  f"Updating unassigned tracks took {update_unassigned_time - update_time}.\n"
-                  f"Deletion took {deletion_time - update_unassigned_time}ms.\n"
-                  f"Track creation took {creation_time - deletion_time}ms.\n"
-                  f"Display took {display_time - creation_time}ms.\n\n")
+            print(f"The frame took {(display_time - start_time)*1000}ms in total.\n"
+                  f"Camera stabilization took {(calibration_time - start_time)*1000}ms.\n"
+                  f"Object detection took {(detection_time - calibration_time)*1000}ms.\n"
+                  f"Prediction took {(prediction_time - calibration_time)*1000}ms.\n"
+                  f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n"
+                  f"Updating took {(update_time - assignment_time)*1000}ms.\n"
+                  f"Updating unassigned tracks took {(update_unassigned_time - update_time)*1000}.\n"
+                  f"Deletion took {(deletion_time - update_unassigned_time)*1000}ms.\n"
+                  f"Track creation took {(creation_time - deletion_time)*1000}ms.\n"
+                  f"Display took {(display_time - creation_time)*1000}ms.\n\n")
 
             if good_tracks:
                 good_tracks_log.append(good_tracks)
@@ -183,11 +187,11 @@ def motion_based_multi_object_tracking(filename):
 def setup_system_objects(filename):
     # varThreshold affects the spottiness of the image. The lower it is, the more smaller spots.
     # The larger it is, these spots will combine into large foreground areas
-    fgbg = cv2.createBackgroundSubtractorMOG2(history=int(3*FPS), varThreshold=2, detectShadows=False)
+    fgbg = cv2.createBackgroundSubtractorMOG2(history=int(15*FPS), varThreshold=64 * SCALE_FACTOR, detectShadows=False)
     # Background ratio represents the fraction of the history a frame must be present
     # to be considered part of the background
     # eg. history is 5s, background ratio is 0.1, frames present for 0.5s will be considered background
-    fgbg.setBackgroundRatio(0.01)
+    fgbg.setBackgroundRatio(0.05)
     fgbg.setNMixtures(5)
 
     params = cv2.SimpleBlobDetector_Params()
@@ -216,14 +220,13 @@ def detect_objects(frame, fgbg, detector):
     # Subtract Background
     # Learning rate affects how aggressively the algorithm applies the changes to background ratio and stuff
     # Or so I believe. Adjust it alongside background ratio and history to tune
-    masked = fgbg.apply(masked, learningRate=0.01)
+    masked = fgbg.apply(masked, learningRate=0.3)
 
     # Invert frame such that black pixels are foreground
     masked = cv2.bitwise_not(masked)
 
     # Close to remove black spots
-    # masked = imclose(masked, 3, 1)
-    # masked = imclose(masked, 5, 1)
+    masked = imclose(masked, 3, 1)
     # Open to remove white holes
     # masked = imopen(masked, 3, 2)
     # masked = imfill(masked)
