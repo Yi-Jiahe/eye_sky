@@ -4,12 +4,13 @@ import matplotlib.pyplot as plt
 
 
 def plot_tracks(tracks):
-    max_id = tracks[-1][-1][0]
+    # max_id = tracks[-1][-1][0]
+    frame_count = len(tracks)-1
 
     for frame in tracks[1:]:
         for track in frame:
             track_id = track[0]
-            hex_code = scalar_to_hex(track_id, max_id)
+            hex_code = scalar_to_hex(tracks.index(frame), frame_count)
             plt.scatter(track[3][0], -track[3][1], c=hex_code, marker='+')
     plt.xlim(0, tracks[0][0])
     plt.ylim(-tracks[0][1], 0)
@@ -35,4 +36,4 @@ def scalar_to_hex(track_id, max_id):
         return '#%02x%02x%02x' % (255, 0, 255)
 
 
-plot_tracks(motion_based_multi_object_tracking('pan_sky_x264.mp4'))
+plot_tracks(motion_based_multi_object_tracking('pan_zoom_sky.mp4'))
