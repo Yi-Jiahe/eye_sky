@@ -78,7 +78,8 @@ def imfill(im_in):
 # Returns the filled image which has the background elements filled in
 def remove_ground(im_in):
     kernel_dilation = np.ones((5, 5), np.uint8)
-    dilated = cv2.dilate(im_in, kernel_dilation, iterations=12)
+    # Number of iterations determines how close objects need to be to be considered background
+    dilated = cv2.dilate(im_in, kernel_dilation, iterations=10)
 
     contours, hierarchy = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
@@ -123,7 +124,7 @@ def motion_based_multi_object_tracking(filename):
     tracks_log = []
 
     good_tracks_log = []
-    good_tracks_log.append([FRAME_WIDTH, FRAME_HEIGHT])
+    good_tracks_log.append([FPS, FRAME_WIDTH, FRAME_HEIGHT])
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -263,7 +264,7 @@ def detect_objects(frame, fgbg, detector):
     # masked = imopen(masked, 3, 2)
     # masked = imfill(masked)
     kernel_dilation = np.ones((5, 5), np.uint8)
-    masked = cv2.dilate(masked, kernel_dilation, iterations=3)
+    masked = cv2.dilate(masked, kernel_dilation, iterations=1)
 
     # Invert frame such that black pixels are foreground
     masked = cv2.bitwise_not(masked)
@@ -468,8 +469,10 @@ def create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes):
 
 
 def display_tracking_results(frame, masked, tracks, counter, out_original, out_masked):
+    # Actually, I feel having both might be redundant together with the deletion criteria
     min_track_age = 1.0 * FPS    # seconds * FPS to give number of frames in seconds
-    min_visible_count = 0.7 * FPS
+    # This has to be less than or equal to the minimum age or it make the minimum age redundant
+    min_visible_count = 1.0 * FPS
 
     good_tracks = []
 

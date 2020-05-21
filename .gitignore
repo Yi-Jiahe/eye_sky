@@ -3,3 +3,18 @@
 
 *.mp4
 *.avi
+
+
+# Files for transfer #
+######################
+
+*.zip
+Transfer
+
+
+# Other folders #
+#################
+
+venv
+.idea
+__pycache__

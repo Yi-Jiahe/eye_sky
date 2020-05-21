@@ -2,6 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="5bb5ae62-59bc-44dd-a61b-43525dc61650" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/object_tracker.py" beforeDir="false" afterPath="$PROJECT_DIR$/object_tracker.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/visualise_tracks.py" beforeDir="false" afterPath="$PROJECT_DIR$/visualise_tracks.py" afterDir="false" />
     </list>
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -15,8 +18,8 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/readme.txt">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="68">
-              <caret line="4" column="18" selection-start-line="4" selection-start-column="18" selection-end-line="4" selection-end-column="18" />
+            <state relative-caret-position="17">
+              <caret line="1" selection-start-line="1" selection-end-line="1" selection-end-column="13" />
             </state>
           </provider>
         </entry>
@@ -24,35 +27,32 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/object_tracker.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="103">
-              <caret line="470" column="20" selection-start-line="470" selection-start-column="20" selection-end-line="470" selection-end-column="20" />
+            <state relative-caret-position="153">
+              <caret line="126" column="33" selection-start-line="126" selection-start-column="33" selection-end-line="126" selection-end-column="33" />
               <folding>
                 <element signature="e#0#10#0" expanded="true" />
-                <element signature="e#187#567#0" />
-                <element signature="e#758#933#0" />
-                <element signature="e#1028#1204#0" />
-                <element signature="e#1424#2416#0" />
-                <element signature="e#2547#3091#0" />
-                <element signature="e#3424#3446#0" />
-                <element signature="e#9020#9077#0" />
-                <element signature="e#9417#12907#0" />
-                <element signature="e#13125#13517#0" />
-                <element signature="e#13676#13860#0" />
-                <element signature="e#14015#14812#0" />
-                <element signature="e#15018#17046#0" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/visualise_tracks.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="204">
+              <caret line="38" column="46" selection-start-line="38" selection-start-column="46" selection-end-line="38" selection-end-column="46" />
+              <folding>
+                <element signature="e#0#61#0" expanded="true" />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/visualise_tracks.py">
+        <entry file="file://$PROJECT_DIR$/.gitignore">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="222">
-              <caret line="36" selection-start-line="36" selection-end-line="36" />
-              <folding>
-                <element signature="e#0#61#0" expanded="true" />
-              </folding>
+            <state relative-caret-position="306">
+              <caret line="18" column="5" lean-forward="true" selection-start-line="18" selection-start-column="5" selection-end-line="18" selection-end-column="5" />
             </state>
           </provider>
         </entry>
@@ -82,8 +82,9 @@
         <option value="$USER_HOME$/Desktop/2020-05-18 - My Transfer/Side_View_Pub/droneLocate.py" />
         <option value="$PROJECT_DIR$/MotionBasedMultiObjectTrackingExample.py" />
         <option value="$PROJECT_DIR$/Calculate_multiple_tracks_paths3_Xj_with_matching.py" />
-        <option value="$PROJECT_DIR$/visualise_tracks.py" />
         <option value="$PROJECT_DIR$/object_tracker.py" />
+        <option value="$PROJECT_DIR$/visualise_tracks.py" />
+        <option value="$PROJECT_DIR$/.gitignore" />
       </list>
     </option>
   </component>
@@ -98,7 +99,6 @@
       <foldersAlwaysOnTop value="true" />
     </navigator>
     <panes>
-      <pane id="Scope" />
       <pane id="ProjectPane">
         <subPane>
           <expand>
@@ -110,6 +110,7 @@
           <select />
         </subPane>
       </pane>
+      <pane id="Scope" />
     </panes>
   </component>
   <component name="PropertiesComponent">
@@ -150,6 +151,27 @@
       <option name="ADD_CONTENT_ROOTS" value="true" />
       <option name="ADD_SOURCE_ROOTS" value="true" />
       <option name="SCRIPT_NAME" value="C:\Users\Jiahe\PycharmProjects\eye_sky\object_tracker.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="false" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="codecs" type="PythonConfigurationType" factoryName="Python" temporary="true">
+      <module name="MotionBasedMultiObject_detection_with_camera_compensation" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$USER_HOME$/AppData/Local/Programs/Python/Python37-32/Lib" />
+      <option name="IS_MODULE_SDK" value="true" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <option name="SCRIPT_NAME" value="$USER_HOME$/AppData/Local/Programs/Python/Python37-32/Lib/codecs.py" />
       <option name="PARAMETERS" value="" />
       <option name="SHOW_COMMAND_LINE" value="false" />
       <option name="EMULATE_TERMINAL" value="false" />
@@ -224,6 +246,7 @@
     <recent_temporary>
       <list>
         <item itemvalue="Python.visualise_tracks" />
+        <item itemvalue="Python.codecs" />
         <item itemvalue="Python.object_tracker" />
         <item itemvalue="Python.MotionBasedMultiObjectTrackingExample" />
         <item itemvalue="Python.droneLocate" />
@@ -256,12 +279,12 @@
     <frame x="-7" y="-7" width="1550" height="838" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.2648613" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.2648613" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Favorites" order="2" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" weight="0.32956153" />
-      <window_info active="true" anchor="bottom" id="Run" order="2" visible="true" weight="0.42149928" />
+      <window_info anchor="bottom" id="Run" order="2" visible="true" weight="0.39886847" />
       <window_info anchor="bottom" id="Debug" order="3" weight="0.39886847" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
@@ -374,39 +397,39 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$USER_HOME$/Desktop/2020-05-18 - My Transfer/Top_View_Pub/droneLocateTX2.py">
+    <entry file="file://$USER_HOME$/Desktop/2020-05-18 - My Transfer/Top_View_Pub/droneLocateTX2.py" />
+    <entry file="file://$USER_HOME$/Desktop/2020-05-18 - My Transfer/Side_View_Pub/droneLocate.py" />
+    <entry file="file://$USER_HOME$/Desktop/2020-05-18 - My Transfer/Side_View_Pub/ROS_Pub.py" />
+    <entry file="file://$PROJECT_DIR$/venv/Lib/site-packages/cv2/data/__init__.py">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/readme.txt">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="1717">
-          <caret line="104" column="31" selection-start-line="104" selection-start-column="31" selection-end-line="104" selection-end-column="31" />
+        <state relative-caret-position="17">
+          <caret line="1" selection-start-line="1" selection-end-line="1" selection-end-column="13" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/object_tracker.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="153">
+          <caret line="126" column="33" selection-start-line="126" selection-start-column="33" selection-end-line="126" selection-end-column="33" />
           <folding>
-            <element signature="e#0#18#0" expanded="true" />
+            <element signature="e#0#10#0" expanded="true" />
           </folding>
         </state>
       </provider>
     </entry>
-    <entry file="file://$USER_HOME$/Desktop/2020-05-18 - My Transfer/Side_View_Pub/droneLocate.py">
+    <entry file="file://$USER_HOME$/AppData/Local/Programs/Python/Python37-32/Lib/codecs.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="85">
-          <caret line="8" selection-start-line="8" selection-end-line="8" />
-          <folding>
-            <element signature="e#22#40#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$USER_HOME$/Desktop/2020-05-18 - My Transfer/Side_View_Pub/ROS_Pub.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="85">
-          <caret line="9" column="15" selection-start-line="9" selection-start-column="15" selection-end-line="9" selection-end-column="15" />
-          <folding>
-            <element signature="e#0#35#0" expanded="true" />
-          </folding>
+        <state relative-caret-position="260">
+          <caret line="317" lean-forward="true" selection-start-line="317" selection-end-line="317" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/Calculate_multiple_tracks_paths3_Xj_with_matching.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-479">
+        <state relative-caret-position="34">
           <caret line="2" column="21" selection-start-line="2" selection-start-column="21" selection-end-line="2" selection-end-column="21" />
           <folding>
             <element signature="e#0#18#0" expanded="true" />
@@ -414,52 +437,20 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/venv/Lib/site-packages/cv2/data/__init__.py">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
-    <entry file="file://$USER_HOME$/AppData/Local/Programs/Python/Python37-32/Lib/codecs.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="5236">
-          <caret line="309" selection-start-line="309" selection-end-line="309" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/readme.txt">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="68">
-          <caret line="4" column="18" selection-start-line="4" selection-start-column="18" selection-end-line="4" selection-end-column="18" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/object_tracker.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="103">
-          <caret line="470" column="20" selection-start-line="470" selection-start-column="20" selection-end-line="470" selection-end-column="20" />
-          <folding>
-            <element signature="e#0#10#0" expanded="true" />
-            <element signature="e#187#567#0" />
-            <element signature="e#758#933#0" />
-            <element signature="e#1028#1204#0" />
-            <element signature="e#1424#2416#0" />
-            <element signature="e#2547#3091#0" />
-            <element signature="e#3424#3446#0" />
-            <element signature="e#9020#9077#0" />
-            <element signature="e#9417#12907#0" />
-            <element signature="e#13125#13517#0" />
-            <element signature="e#13676#13860#0" />
-            <element signature="e#14015#14812#0" />
-            <element signature="e#15018#17046#0" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/visualise_tracks.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="222">
-          <caret line="36" selection-start-line="36" selection-end-line="36" />
+        <state relative-caret-position="204">
+          <caret line="38" column="46" selection-start-line="38" selection-start-column="46" selection-end-line="38" selection-end-column="46" />
           <folding>
             <element signature="e#0#61#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.gitignore">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="306">
+          <caret line="18" column="5" lean-forward="true" selection-start-line="18" selection-start-column="5" selection-end-line="18" selection-end-column="5" />
         </state>
       </provider>
     </entry>

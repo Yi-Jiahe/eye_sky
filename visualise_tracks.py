@@ -3,22 +3,56 @@ import math
 import matplotlib.pyplot as plt
 
 
-def plot_tracks(tracks):
-    # max_id = tracks[-1][-1][0]
-    frame_count = len(tracks)-1
+class TrackPlot():
+    def __init__(self, track_id):
+        self.id = track_id
+        self.xs = []
+        self.ys = []
+        self.colourized_times = []
 
-    for frame in tracks[1:]:
+    def plot_track(self):
+        print(f"Track {self.id} being plotted...")
+        plt.scatter(self.xs, self.ys, c=self.colourized_times, marker='+')
+        plt.show()
+
+
+def plot_tracks(tracks_in_frames):
+    fps = tracks_in_frames[0][0]
+    frame_width, frame_height = tracks_in_frames[0][1], tracks_in_frames[0][2]
+    tracks_in_frames = tracks_in_frames[1:]
+    frame_count = len(tracks_in_frames)
+
+    track_ids = []
+    track_plots = []
+
+    for i in range(len(tracks_in_frames)):
+        frame = tracks_in_frames[i]
         for track in frame:
             track_id = track[0]
-            hex_code = scalar_to_hex(tracks.index(frame), frame_count)
-            plt.scatter(track[3][0], -track[3][1], c=hex_code, marker='+')
-    plt.xlim(0, tracks[0][0])
-    plt.ylim(-tracks[0][1], 0)
+
+            if track_id not in track_ids:   # First occurrence of the track
+                track_ids.append(track_id)
+                track_plots.append(TrackPlot(track_id))
+
+            track_plot = track_plots[track_ids.index(track_id)]
+            track_plot.xs.append(track[3][0])
+            track_plot.ys.append(-track[3][1])
+            track_plot.colourized_times.append(scalar_to_hex(i, frame_count))
+
+    for track_plot in track_plots:
+        print(f"Track {track_plot.id} is {len(track_plot.colourized_times)/fps} seconds long.")
+        if len(track_plot.colourized_times) > 5 * fps:
+            # track_plot.plot_track()
+            print(f"Track {track_plot.id} being plotted...")
+            plt.scatter(track_plot.xs, track_plot.ys, c=track_plot.colourized_times, marker='+')
+
+    plt.xlim(0, frame_width)
+    plt.ylim(-frame_height, 0)
     plt.show()
 
 
-def scalar_to_hex(track_id, max_id):
-    f = track_id/max_id
+def scalar_to_hex(scalar_value, max_value):
+    f = scalar_value / max_value
     a = (1-f)*5
     x = math.floor(a)
     y = math.floor(255*(a-x))
@@ -36,4 +70,4 @@ def scalar_to_hex(track_id, max_id):
         return '#%02x%02x%02x' % (255, 0, 255)
 
 
-plot_tracks(motion_based_multi_object_tracking('pan_zoom_sky.mp4'))
+plot_tracks(motion_based_multi_object_tracking('Kimhoe_phone.mp4'))
