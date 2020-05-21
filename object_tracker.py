@@ -76,23 +76,37 @@ def imfill(im_in):
 # Identify background objects by their shape (non-circular)
 # Creates a copy of the input image which has the background contour filled in
 # Returns the filled image which has the background elements filled in
-def remove_ground(im_in):
+def remove_ground(im_in, dilation_iterations, background_contour_circularity):
     kernel_dilation = np.ones((5, 5), np.uint8)
     # Number of iterations determines how close objects need to be to be considered background
-    dilated = cv2.dilate(im_in, kernel_dilation, iterations=10)
+    dilated = cv2.dilate(im_in, kernel_dilation, iterations=dilation_iterations)
 
     contours, hierarchy = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     background_contours = []
     for contour in contours:
+        # Identify background from foreground by the circularity of their dilated contours
         circularity = 4*math.pi*cv2.contourArea(contour)/(cv2.arcLength(contour, True)**2)
-        if circularity <= 0.5:
+        if circularity <= background_contour_circularity:
             background_contours.append(contour)
+
+    # This bit is used to find a suitable level of dilation to remove background objects
+    # while keeping objects to be detected
+    im_debug = cv2.cvtColor(dilated.copy(), cv2.COLOR_GRAY2RGB)
+    cv2.drawContours(im_debug, background_contours, -1, (0, 255, 0), 3)
+    imshow_resized('original', im_in)
+    imshow_resized('to_be_removed', im_debug)
 
     im_out = im_in.copy()
     cv2.drawContours(im_out, background_contours, -1, 0, -1)
 
     return im_out
+
+
+def imshow_resized(window_name, img):
+    window_size = (int(848), int(480))
+    img = cv2.resize(img, window_size, interpolation=cv2.INTER_CUBIC)
+    cv2.imshow(window_name, img)
 
 
 def motion_based_multi_object_tracking(filename):
@@ -123,8 +137,7 @@ def motion_based_multi_object_tracking(filename):
     centroids_log = []
     tracks_log = []
 
-    good_tracks_log = []
-    good_tracks_log.append([FPS, FRAME_WIDTH, FRAME_HEIGHT])
+    good_tracks_log = [[FPS, FRAME_WIDTH, FRAME_HEIGHT]]
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -133,26 +146,26 @@ def motion_based_multi_object_tracking(filename):
 
             start_time = time.time()
 
-            # if frame_count == 0:
-            #     frame_before = frame
-            # elif frame_count >= 1:
-            #     image1 = cv2.cvtColor(frame_before, cv2.COLOR_BGR2GRAY)
-            #     image2 = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            #
-            #     image_points1 = cv2.goodFeaturesToTrack(image1, maxCorners=100, qualityLevel=0.01, minDistance=10)
-            #
-            #     image_points2, status, err = cv2.calcOpticalFlowPyrLK(image1, image2, image_points1, None)
-            #
-            #     idx = np.where(status == 1)[0]
-            #     image_points1 = image_points1[idx]
-            #     image_points2 = image_points2[idx]
-            #
-            #     m = cv2.estimateAffinePartial2D(image_points1, image_points2)[0]
-            #     rows, columns = image1.shape
-            #     frame_stabilized = cv2.warpAffine(frame, m, (columns, rows))
-            #
-            #     frame_before = frame
-            #     frame = frame_stabilized
+            if frame_count == 0:
+                frame_before = frame
+            elif frame_count >= 1:
+                image1 = cv2.cvtColor(frame_before, cv2.COLOR_BGR2GRAY)
+                image2 = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+                image_points1 = cv2.goodFeaturesToTrack(image1, maxCorners=100, qualityLevel=0.01, minDistance=10)
+
+                image_points2, status, err = cv2.calcOpticalFlowPyrLK(image1, image2, image_points1, None)
+
+                idx = np.where(status == 1)[0]
+                image_points1 = image_points1[idx]
+                image_points2 = image_points2[idx]
+
+                m = cv2.estimateAffinePartial2D(image_points1, image_points2)[0]
+                rows, columns = image1.shape
+                frame_stabilized = cv2.warpAffine(frame, m, (columns, rows))
+
+                frame_before = frame
+                frame = frame_stabilized
 
             calibration_time = time.time()
 
@@ -191,6 +204,7 @@ def motion_based_multi_object_tracking(filename):
             #       f"Track creation took {(creation_time - deletion_time)*1000}ms.\n"
             #       f"Display took {(display_time - creation_time)*1000}ms.\n\n")
 
+            # good_tracks = []
             if good_tracks:
                 good_tracks_log.append(good_tracks)
 
@@ -246,7 +260,10 @@ def detect_objects(frame, fgbg, detector):
     # Adjust contrast and brightness of image to make foreground stand out more
     # alpha used to adjust contrast, where alpha < 1 reduces contrast and alpha > 1 increases it
     # beta used to increase brightness, scale of (-255 to 255) ? Needs confirmation
-    masked = cv2.convertScaleAbs(frame, alpha=1, beta=128)
+    # formula is im_out = alpha * im_in + beta
+    # Therefore to change brightness before contrast, we need to do alpha = 1 first
+    masked = cv2.convertScaleAbs(frame, alpha=1, beta=0)
+    masked = cv2.convertScaleAbs(frame, alpha=2, beta=128)
     # masked = cv2.cvtColor(masked, cv2.COLOR_RGB2GRAY)
 
     # Subtract Background
@@ -255,7 +272,7 @@ def detect_objects(frame, fgbg, detector):
     # Found that 0.1 - 0.3 is a good range
     masked = fgbg.apply(masked, learningRate=-1)
 
-    masked = remove_ground(masked)
+    masked = remove_ground(masked, 13, 0.7)
 
     # Morphological Transforms
     # Close to remove black spots
@@ -269,6 +286,7 @@ def detect_objects(frame, fgbg, detector):
     # Invert frame such that black pixels are foreground
     masked = cv2.bitwise_not(masked)
 
+    # keypoints = []
     # Blob detection
     keypoints = detector.detect(masked)
 
@@ -502,14 +520,14 @@ def display_tracking_results(frame, masked, tracks, counter, out_original, out_m
     out_original.write(frame)
     out_masked.write(masked)
 
-    # cv2.imwrite('output/frame/' + str(counter) + '.png', frame)
-    # cv2.imwrite('output/masked/' + str(counter) + '.png', masked)
+    # window_size = (int(848), int(480))
+    # frame = cv2.resize(frame, window_size, interpolation=cv2.INTER_CUBIC)
+    # masked = cv2.resize(masked, window_size, interpolation=cv2.INTER_CUBIC)
+    #
+    # cv2.imshow('frame', frame)
+    # cv2.imshow('masked', masked)
 
-    window_size = (int(848), int(480))
-    frame = cv2.resize(frame, window_size, interpolation=cv2.INTER_CUBIC)
-    masked = cv2.resize(masked, window_size, interpolation=cv2.INTER_CUBIC)
-
-    cv2.imshow('frame', frame)
-    cv2.imshow('masked', masked)
+    imshow_resized('frame', frame)
+    imshow_resized('masked', masked)
 
     return good_tracks
