@@ -3,6 +3,7 @@ import math
 import numpy as np
 from camera_stabilizer import stabilize_frame
 from filterpy.kalman import KalmanFilter
+from filterpy.common import Q_discrete_white_noise
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
 
@@ -139,7 +140,7 @@ def motion_based_multi_object_tracking(filename):
     centroids_log = []
     tracks_log = []
 
-    scene_log = [[FPS, FRAME_WIDTH, FRAME_HEIGHT],[]]
+    scene_log = [[FPS, FRAME_WIDTH, FRAME_HEIGHT], []]
 
     while cap.isOpened():
         ret, frame = cap.read()
@@ -151,13 +152,19 @@ def motion_based_multi_object_tracking(filename):
                 frame_before = frame
             elif frame_count >= 1:
                 # Frame stabilization
-                stabilized_frame, translating = stabilize_frame(frame_before, frame)
+                stabilized_frame, dx, dy = stabilize_frame(frame_before, frame)
 
-                if scene_transitioning == False and translating == True:    # Start moving
+                movement_threshold = 2
+                if math.fabs(dx) > movement_threshold or math.fabs(dy) > movement_threshold:
+                    translating = True
+                else:
+                    translating = False
+
+                if not scene_transitioning and translating:    # Start moving
                     scene_transitioning = True
                     # Delete all tracks from previous scene
                     tracks.clear()
-                elif scene_transitioning == True and translating == False:    # Stop moving
+                elif scene_transitioning and not translating:    # Stop moving
                     scene_transitioning = False
                     scene_log.append([])
                 else:  # scene_transitioning == translating implies no change in state to be made
@@ -290,7 +297,7 @@ def detect_objects(frame, fgbg, detector):
     # masked = imopen(masked, 3, 2)
     # masked = imfill(masked)
     kernel_dilation = np.ones((5, 5), np.uint8)
-    masked = cv2.dilate(masked, kernel_dilation, iterations=1)
+    masked = cv2.dilate(masked, kernel_dilation, iterations=2)
 
     # Invert frame such that black pixels are foreground
     masked = cv2.bitwise_not(masked)
@@ -400,7 +407,18 @@ def update_assigned_tracks(assignments, tracks, centroids, sizes):
         size = sizes[detection_idx]
 
         track = tracks[track_idx]
-        track.kalmanFilter.update(centroid)
+
+        kf = track.kalmanFilter
+        kf.update(centroid)
+
+        # # Adaptive filtering
+        # # If the residual is too large, increase the process noise
+        # Q_scale_factor = 100.
+        # y, S = kf.y, kf.S  # Residual and Measurement covariance
+        # # Square and normalize the residual
+        # eps = np.dot(y.T, np.linalg.inv(S)).dot(y)
+        # kf.Q *= eps * 10.
+
         track.size = size
         track.age += 1
 
@@ -450,13 +468,38 @@ def create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes):
         centroid = centroids[detection_idx]
         size = sizes[detection_idx]
 
+        dt = 1/FPS  # Time step between measurements in seconds
+
         track = Track(next_id, size)
+
+
+        # Attempted tuning
+        # # Constant velocity model
+        # # Initial Location
+        # track.kalmanFilter.x = [centroid[0], centroid[1], 0, 0]
+        # # State Transition Matrix
+        # track.kalmanFilter.F = np.array([[1., 0, dt, 0],
+        #                                  [0, 1, 0, dt],
+        #                                  [0, 0, 1, 0],
+        #                                  [0, 0, 0, 1]])
+        # # Measurement Function
+        # track.kalmanFilter.H = np.array([[1., 0, 0, 0],
+        #                                  [0, 1, 0, 0]])
+        # # Covariance Matrix
+        # track.kalmanFilter.P = np.diag([(10.*SCALE_FACTOR)**2, (10.*SCALE_FACTOR)**2,  # Positional variance
+        #                                 (7*SCALE_FACTOR)**2, (7*SCALE_FACTOR)**2])  # Velocity variance
+        # # Process Noise
+        # # Assumes that the process noise is white
+        # track.kalmanFilter.Q = Q_discrete_white_noise(dim=4, dt=dt, var=1000)
+        # # Measurement Noise
+        # track.kalmanFilter.R = np.diag([10.**2, 10**2])
+
         # Constant velocity model
         # Initial Location
         track.kalmanFilter.x = [centroid[0], centroid[1], 0, 0]
         # State Transition Matrix
-        track.kalmanFilter.F = np.array([[1., 0, 1/FPS, 0],
-                                         [0, 1, 0, 1/FPS],
+        track.kalmanFilter.F = np.array([[1., 0, 1, 0],
+                                         [0, 1, 0, 1],
                                          [0, 0, 1, 0],
                                          [0, 0, 0, 1]])
         # Measurement Function
@@ -464,30 +507,13 @@ def create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes):
                                          [0, 1, 0, 0]])
         # Ah I really don't know what I'm doing here
         # Covariance Matrix
-        track.kalmanFilter.P = np.diag([200., 200, 50*(FPS**2), 50*(FPS**2)]) # * SCALE_FACTOR
+        track.kalmanFilter.P = np.diag([200., 200, 50, 50])
         # Motion Noise
-        track.kalmanFilter.Q = np.diag([100., 100, 25*(FPS**2), 25*(FPS**2)]) # * SCALE_FACTOR
+        track.kalmanFilter.Q = np.diag([100., 100, 25, 25])
         # Measurement Noise
         track.kalmanFilter.R = 100
         # # Constant acceleration model
-        # # Initial Location
-        # track.kalmanFilter.x = [centroid[0], centroid[1], 0, 0, 0, 0]
-        # # State Transition Matrix
-        # track.kalmanFilter.F = np.array([[1., 0, 1, 0, 0.5, 0],
-        #                                  [0, 1, 0, 1, 0, 0.5],
-        #                                  [0, 0, 1, 0, 1, 0],
-        #                                  [0, 0, 0, 1, 0, 1],
-        #                                  [0, 0, 0, 0, 1, 0],
-        #                                  [0, 0, 0, 0, 0, 1]])
-        # # Measurement Function
-        # track.kalmanFilter.H = np.array([[1., 0, 0, 0, 0, 0],
-        #                                  [0, 1, 0, 0, 0, 0]])
-        # # Covariance Matrix
-        # track.kalmanFilter.P = np.diag([200., 200, 50, 50, 10, 10])
-        # # Motion Noise
-        # track.kalmanFilter.Q = np.diag([100., 100, 25, 25, 50, 50])
-        # # Measurement Noise
-        # track.kalmanFilter.R = 100
+
 
         tracks.append(track)
 

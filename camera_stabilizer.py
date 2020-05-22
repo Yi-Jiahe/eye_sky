@@ -39,15 +39,10 @@ def stabilize_frame(img1_in, img2_in):
     # Extract rotation angle
     da = np.arctan2(m[1, 0], m[0, 0])
 
-    translating = False
-    movement_threshold = 2
-    if math.fabs(dx) > movement_threshold or math.fabs(dy) > movement_threshold:
-        translating = True
-
     rows, columns = img2_gray.shape
     frame_stabilized = cv2.warpAffine(img2_in, m, (columns, rows))
 
-    return frame_stabilized, translating
+    return frame_stabilized, dx, dy
 
 
 def stabilize_frame_standalone(filename):
