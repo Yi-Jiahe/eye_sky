@@ -16,39 +16,41 @@ class TrackPlot():
         plt.show()
 
 
-def plot_tracks(tracks_in_frames):
-    fps = tracks_in_frames[0][0]
-    frame_width, frame_height = tracks_in_frames[0][1], tracks_in_frames[0][2]
-    tracks_in_frames = tracks_in_frames[1:]
-    frame_count = len(tracks_in_frames)
+def plot_tracks(scenes):
+    fps = scenes[0][0]
+    frame_width, frame_height = scenes[0][1], scenes[0][2]
+    scenes = scenes[1:]
 
-    track_ids = []
-    track_plots = []
 
-    for i in range(len(tracks_in_frames)):
-        frame = tracks_in_frames[i]
-        for track in frame:
-            track_id = track[0]
+    for scene in scenes:
+        track_ids = []
+        track_plots = []
 
-            if track_id not in track_ids:   # First occurrence of the track
-                track_ids.append(track_id)
-                track_plots.append(TrackPlot(track_id))
+        frame_count = len(scene)
+        for frame in scene:
+            idx = scene.index(frame)
+            for track in frame:
+                track_id = track[0]
 
-            track_plot = track_plots[track_ids.index(track_id)]
-            track_plot.xs.append(track[3][0])
-            track_plot.ys.append(-track[3][1])
-            track_plot.colourized_times.append(scalar_to_hex(i, frame_count))
+                if track_id not in track_ids:   # First occurrence of the track
+                    track_ids.append(track_id)
+                    track_plots.append(TrackPlot(track_id))
 
-    for track_plot in track_plots:
-        print(f"Track {track_plot.id} is {len(track_plot.colourized_times)/fps} seconds long.")
-        if len(track_plot.colourized_times) > 5 * fps:
-            # track_plot.plot_track()
-            print(f"Track {track_plot.id} being plotted...")
-            plt.scatter(track_plot.xs, track_plot.ys, c=track_plot.colourized_times, marker='+')
+                track_plot = track_plots[track_ids.index(track_id)]
+                track_plot.xs.append(track[3][0])
+                track_plot.ys.append(-track[3][1])
+                track_plot.colourized_times.append(scalar_to_hex(idx, frame_count))
 
-    plt.xlim(0, frame_width)
-    plt.ylim(-frame_height, 0)
-    plt.show()
+        for track_plot in track_plots:
+            print(f"Track {track_plot.id} is {len(track_plot.colourized_times)/fps} seconds long.")
+            if len(track_plot.colourized_times) > 5 * fps:
+                # track_plot.plot_track()
+                print(f"Track {track_plot.id} being plotted...")
+                plt.scatter(track_plot.xs, track_plot.ys, c=track_plot.colourized_times, marker='+')
+
+        plt.xlim(0, frame_width)
+        plt.ylim(-frame_height, 0)
+        plt.show()
 
 
 def scalar_to_hex(scalar_value, max_value):

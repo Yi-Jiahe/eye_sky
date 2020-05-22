@@ -1,6 +1,7 @@
 import cv2
 import math
 import numpy as np
+from camera_stabilizer import stabilize_frame
 from filterpy.kalman import KalmanFilter
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
@@ -90,12 +91,12 @@ def remove_ground(im_in, dilation_iterations, background_contour_circularity):
         if circularity <= background_contour_circularity:
             background_contours.append(contour)
 
-    # This bit is used to find a suitable level of dilation to remove background objects
-    # while keeping objects to be detected
-    im_debug = cv2.cvtColor(dilated.copy(), cv2.COLOR_GRAY2RGB)
-    cv2.drawContours(im_debug, background_contours, -1, (0, 255, 0), 3)
-    imshow_resized('original', im_in)
-    imshow_resized('to_be_removed', im_debug)
+    # # This bit is used to find a suitable level of dilation to remove background objects
+    # # while keeping objects to be detected
+    # im_debug = cv2.cvtColor(dilated.copy(), cv2.COLOR_GRAY2RGB)
+    # cv2.drawContours(im_debug, background_contours, -1, (0, 255, 0), 3)
+    # imshow_resized('original', im_in)
+    # imshow_resized('to_be_removed', im_debug)
 
     im_out = im_in.copy()
     cv2.drawContours(im_out, background_contours, -1, 0, -1)
@@ -127,21 +128,21 @@ def motion_based_multi_object_tracking(filename):
     out_masked = cv2.VideoWriter('out_masked.mp4', cv2.VideoWriter_fourcc(*'h264'),
                                  FPS, (FRAME_WIDTH, FRAME_HEIGHT))
 
-    fgbg, detector = setup_system_objects(filename)
+    fgbg, detector = setup_system_objects()
+
+    scene_transitioning = False
 
     tracks = []
-
     next_id = 0
     frame_count = 0
 
     centroids_log = []
     tracks_log = []
 
-    good_tracks_log = [[FPS, FRAME_WIDTH, FRAME_HEIGHT]]
+    scene_log = [[FPS, FRAME_WIDTH, FRAME_HEIGHT],[]]
 
     while cap.isOpened():
         ret, frame = cap.read()
-
         if ret:
 
             start_time = time.time()
@@ -149,64 +150,67 @@ def motion_based_multi_object_tracking(filename):
             if frame_count == 0:
                 frame_before = frame
             elif frame_count >= 1:
-                image1 = cv2.cvtColor(frame_before, cv2.COLOR_BGR2GRAY)
-                image2 = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                # Frame stabilization
+                stabilized_frame, translating = stabilize_frame(frame_before, frame)
 
-                image_points1 = cv2.goodFeaturesToTrack(image1, maxCorners=100, qualityLevel=0.01, minDistance=10)
+                if scene_transitioning == False and translating == True:    # Start moving
+                    scene_transitioning = True
+                elif scene_transitioning == True and translating == False:    # Stop moving
+                    scene_transitioning = False
+                    scene_log.append([])
 
-                image_points2, status, err = cv2.calcOpticalFlowPyrLK(image1, image2, image_points1, None)
-
-                idx = np.where(status == 1)[0]
-                image_points1 = image_points1[idx]
-                image_points2 = image_points2[idx]
-
-                m = cv2.estimateAffinePartial2D(image_points1, image_points2)[0]
-                rows, columns = image1.shape
-                frame_stabilized = cv2.warpAffine(frame, m, (columns, rows))
+                else:  # scene_transitioning == translating implies no change in state to be made
+                    pass
 
                 frame_before = frame
-                frame = frame_stabilized
+                frame = stabilized_frame
 
             calibration_time = time.time()
 
-            centroids, sizes, masked = detect_objects(frame, fgbg, detector)
-            detection_time = time.time()
-            centroids_log.append(centroids)
+            if scene_transitioning == False:
+                centroids, sizes, masked = detect_objects(frame, fgbg, detector)
+                detection_time = time.time()
+                centroids_log.append(centroids)
 
-            predict_new_locations_of_tracks(tracks)
-            prediction_time = time.time()
+                predict_new_locations_of_tracks(tracks)
+                prediction_time = time.time()
 
-            assignments, unassigned_tracks, unassigned_detections = detection_to_track_assignment(tracks, centroids)
-            assignment_time = time.time()
+                assignments, unassigned_tracks, unassigned_detections = detection_to_track_assignment(tracks, centroids)
+                assignment_time = time.time()
 
-            update_assigned_tracks(assignments, tracks, centroids, sizes)
-            update_time = time.time()
-            tracks_log.append(tracks)
+                update_assigned_tracks(assignments, tracks, centroids, sizes)
+                update_time = time.time()
+                tracks_log.append(tracks)
 
-            update_unassigned_tracks(unassigned_tracks, tracks)
-            update_unassigned_time = time.time()
-            tracks = delete_lost_tracks(tracks)
-            deletion_time = time.time()
-            next_id = create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes)
-            creation_time = time.time()
+                update_unassigned_tracks(unassigned_tracks, tracks)
+                update_unassigned_time = time.time()
+                tracks = delete_lost_tracks(tracks)
+                deletion_time = time.time()
+                next_id = create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes)
+                creation_time = time.time()
 
-            good_tracks = display_tracking_results(frame, masked, tracks, frame_count, out_original, out_masked)
-            display_time = time.time()
+                good_tracks = filter_tracks(frame, masked, tracks, frame_count)
+                display_time = time.time()
 
-            # print(f"The frame took {(display_time - start_time)*1000}ms in total.\n"
-            #       f"Camera stabilization took {(calibration_time - start_time)*1000}ms.\n"
-            #       f"Object detection took {(detection_time - calibration_time)*1000}ms.\n"
-            #       f"Prediction took {(prediction_time - calibration_time)*1000}ms.\n"
-            #       f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n"
-            #       f"Updating took {(update_time - assignment_time)*1000}ms.\n"
-            #       f"Updating unassigned tracks took {(update_unassigned_time - update_time)*1000}.\n"
-            #       f"Deletion took {(deletion_time - update_unassigned_time)*1000}ms.\n"
-            #       f"Track creation took {(creation_time - deletion_time)*1000}ms.\n"
-            #       f"Display took {(display_time - creation_time)*1000}ms.\n\n")
+                if good_tracks:
+                    scene_log[-1].append(good_tracks)
 
-            # good_tracks = []
-            if good_tracks:
-                good_tracks_log.append(good_tracks)
+                # print(f"The frame took {(display_time - start_time)*1000}ms in total.\n"
+                #       f"Camera stabilization took {(calibration_time - start_time)*1000}ms.\n"
+                #       f"Object detection took {(detection_time - calibration_time)*1000}ms.\n"
+                #       f"Prediction took {(prediction_time - calibration_time)*1000}ms.\n"
+                #       f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n"
+                #       f"Updating took {(update_time - assignment_time)*1000}ms.\n"
+                #       f"Updating unassigned tracks took {(update_unassigned_time - update_time)*1000}.\n"
+                #       f"Deletion took {(deletion_time - update_unassigned_time)*1000}ms.\n"
+                #       f"Track creation took {(creation_time - deletion_time)*1000}ms.\n"
+                #       f"Display took {(display_time - creation_time)*1000}ms.\n\n")
+
+            out_original.write(frame)
+            out_masked.write(masked)
+
+            imshow_resized('frame', frame)
+            imshow_resized('masked', masked)
 
             frame_count += 1
 
@@ -218,15 +222,16 @@ def motion_based_multi_object_tracking(filename):
 
     cap.release()
     out_original.release()
+    out_masked.release()
     cv2.destroyAllWindows()
 
-    return good_tracks_log
+    return scene_log
 
 
 # Create VideoCapture object to extract frames from,
 # background subtractor object and blob detector objects for object detection
 # and VideoWriters for output videos
-def setup_system_objects(filename):
+def setup_system_objects():
     # varThreshold affects the spottiness of the image. The lower it is, the more smaller spots.
     # The larger it is, these spots will combine into large foreground areas
     fgbg = cv2.createBackgroundSubtractorMOG2(history=int(15*FPS), varThreshold=64 * SCALE_FACTOR,
@@ -263,7 +268,7 @@ def detect_objects(frame, fgbg, detector):
     # formula is im_out = alpha * im_in + beta
     # Therefore to change brightness before contrast, we need to do alpha = 1 first
     masked = cv2.convertScaleAbs(frame, alpha=1, beta=0)
-    masked = cv2.convertScaleAbs(frame, alpha=2, beta=128)
+    masked = cv2.convertScaleAbs(masked, alpha=2, beta=128)
     # masked = cv2.cvtColor(masked, cv2.COLOR_RGB2GRAY)
 
     # Subtract Background
@@ -486,7 +491,7 @@ def create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes):
     return next_id
 
 
-def display_tracking_results(frame, masked, tracks, counter, out_original, out_masked):
+def filter_tracks(frame, masked, tracks, counter):
     # Actually, I feel having both might be redundant together with the deletion criteria
     min_track_age = 1.0 * FPS    # seconds * FPS to give number of frames in seconds
     # This has to be less than or equal to the minimum age or it make the minimum age redundant
@@ -504,6 +509,7 @@ def display_tracking_results(frame, masked, tracks, counter, out_original, out_m
 
                 good_tracks.append([track.id, track.age, size, (centroid[0], centroid[1])])
 
+                # Display filtered tracks
                 rect_top_left = (int(centroid[0] - size/2), int(centroid[1] - size/2))
                 rect_bottom_right = (int(centroid[0] + size/2), int(centroid[1] + size/2))
                 colour = (0, 0, 255)
@@ -516,18 +522,5 @@ def display_tracking_results(frame, masked, tracks, counter, out_original, out_m
                             font, font_scale, colour, thickness, cv2.LINE_AA)
                 cv2.putText(masked, str(track.id), (rect_bottom_right[0], rect_top_left[1]),
                             font, font_scale, colour, thickness, cv2.LINE_AA)
-
-    out_original.write(frame)
-    out_masked.write(masked)
-
-    # window_size = (int(848), int(480))
-    # frame = cv2.resize(frame, window_size, interpolation=cv2.INTER_CUBIC)
-    # masked = cv2.resize(masked, window_size, interpolation=cv2.INTER_CUBIC)
-    #
-    # cv2.imshow('frame', frame)
-    # cv2.imshow('masked', masked)
-
-    imshow_resized('frame', frame)
-    imshow_resized('masked', masked)
 
     return good_tracks
