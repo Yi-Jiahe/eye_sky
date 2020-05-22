@@ -155,10 +155,11 @@ def motion_based_multi_object_tracking(filename):
 
                 if scene_transitioning == False and translating == True:    # Start moving
                     scene_transitioning = True
+                    # Delete all tracks from previous scene
+                    tracks.clear()
                 elif scene_transitioning == True and translating == False:    # Stop moving
                     scene_transitioning = False
                     scene_log.append([])
-
                 else:  # scene_transitioning == translating implies no change in state to be made
                     pass
 
@@ -189,28 +190,31 @@ def motion_based_multi_object_tracking(filename):
                 next_id = create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes)
                 creation_time = time.time()
 
+                masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2RGB)
                 good_tracks = filter_tracks(frame, masked, tracks, frame_count)
                 display_time = time.time()
 
                 if good_tracks:
                     scene_log[-1].append(good_tracks)
 
-                # print(f"The frame took {(display_time - start_time)*1000}ms in total.\n"
-                #       f"Camera stabilization took {(calibration_time - start_time)*1000}ms.\n"
-                #       f"Object detection took {(detection_time - calibration_time)*1000}ms.\n"
-                #       f"Prediction took {(prediction_time - calibration_time)*1000}ms.\n"
-                #       f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n"
-                #       f"Updating took {(update_time - assignment_time)*1000}ms.\n"
-                #       f"Updating unassigned tracks took {(update_unassigned_time - update_time)*1000}.\n"
-                #       f"Deletion took {(deletion_time - update_unassigned_time)*1000}ms.\n"
-                #       f"Track creation took {(creation_time - deletion_time)*1000}ms.\n"
-                #       f"Display took {(display_time - creation_time)*1000}ms.\n\n")
+                print(f"The frame took {(display_time - start_time)*1000}ms in total.\n"
+                      f"Camera stabilization took {(calibration_time - start_time)*1000}ms.\n"
+                      f"Object detection took {(detection_time - calibration_time)*1000}ms.\n"
+                      f"Prediction took {(prediction_time - detection_time)*1000}ms.\n"
+                      f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n"
+                      f"Updating took {(update_time - assignment_time)*1000}ms.\n"
+                      f"Updating unassigned tracks took {(update_unassigned_time - update_time)*1000}.\n"
+                      f"Deletion took {(deletion_time - update_unassigned_time)*1000}ms.\n"
+                      f"Track creation took {(creation_time - deletion_time)*1000}ms.\n"
+                      f"Display took {(display_time - creation_time)*1000}ms.\n\n")
 
             out_original.write(frame)
             out_masked.write(masked)
 
             imshow_resized('frame', frame)
             imshow_resized('masked', masked)
+
+            print(f"FPS:{1/(time.time()-start_time)}")
 
             frame_count += 1
 
@@ -451,17 +455,18 @@ def create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes):
         # Initial Location
         track.kalmanFilter.x = [centroid[0], centroid[1], 0, 0]
         # State Transition Matrix
-        track.kalmanFilter.F = np.array([[1., 0, 1, 0],
-                                         [0, 1, 0, 1],
+        track.kalmanFilter.F = np.array([[1., 0, 1/FPS, 0],
+                                         [0, 1, 0, 1/FPS],
                                          [0, 0, 1, 0],
                                          [0, 0, 0, 1]])
         # Measurement Function
         track.kalmanFilter.H = np.array([[1., 0, 0, 0],
                                          [0, 1, 0, 0]])
+        # Ah I really don't know what I'm doing here
         # Covariance Matrix
-        track.kalmanFilter.P = np.diag([200., 200, 50, 50])
+        track.kalmanFilter.P = np.diag([200., 200, 50*(FPS**2), 50*(FPS**2)]) # * SCALE_FACTOR
         # Motion Noise
-        track.kalmanFilter.Q = np.diag([100., 100, 25, 25])
+        track.kalmanFilter.Q = np.diag([100., 100, 25*(FPS**2), 25*(FPS**2)]) # * SCALE_FACTOR
         # Measurement Noise
         track.kalmanFilter.R = 100
         # # Constant acceleration model
@@ -498,8 +503,6 @@ def filter_tracks(frame, masked, tracks, counter):
     min_visible_count = 1.0 * FPS
 
     good_tracks = []
-
-    masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2RGB)
 
     if len(tracks) != 0:
         for track in tracks:
