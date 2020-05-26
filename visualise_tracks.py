@@ -72,4 +72,4 @@ def scalar_to_hex(scalar_value, max_value):
         return '#%02x%02x%02x' % (255, 0, 255)
 
 
-plot_tracks(motion_based_multi_object_tracking('Kimhoe_phone.mp4'))
+plot_tracks(motion_based_multi_object_tracking('thailand_vid.mp4'))

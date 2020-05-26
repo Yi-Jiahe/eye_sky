@@ -297,7 +297,7 @@ def detect_objects(frame, fgbg, detector):
     # masked = imopen(masked, 3, 2)
     # masked = imfill(masked)
     kernel_dilation = np.ones((5, 5), np.uint8)
-    masked = cv2.dilate(masked, kernel_dilation, iterations=2)
+    masked = cv2.dilate(masked, kernel_dilation, iterations=1)
 
     # Invert frame such that black pixels are foreground
     masked = cv2.bitwise_not(masked)

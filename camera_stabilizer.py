@@ -53,8 +53,9 @@ def stabilize_frame_standalone(filename):
     FRAME_HEIGHT = int(cap.get(4))
     print(f"Video Resolution: {FRAME_WIDTH} by {FRAME_HEIGHT}")
 
-    display_frame = np.zeros((FRAME_HEIGHT + 500, FRAME_WIDTH + 500, 3))
-    top_left = [250, 250]
+    global_height, global_width = FRAME_HEIGHT, FRAME_WIDTH
+    global_frame = np.zeros((global_height, global_width, 3), dtype=np.uint8)
+    top_left, bottom_right = [0, 0], [FRAME_WIDTH, FRAME_HEIGHT]
 
     frame_count = 0
     scene_transition = False
@@ -106,8 +107,35 @@ def stabilize_frame_standalone(filename):
                         scene_transition = False
                         print('Stopped')
 
-                # top_left[0] += int(dx)
-                # top_left[1] += int(dy)
+                top_left[0] -= int(dx)
+                bottom_right[0] -= int(dx)
+                top_left[1] -= int(dy)
+                bottom_right[1] -= int(dy)
+
+                if top_left[0] < 0:
+                    pad_columns = np.zeros((global_height, int(math.fabs(dx)), 3), dtype=np.uint8)
+                    global_frame = np.hstack((pad_columns, global_frame))
+                    global_width += int(math.fabs(dx))
+                    top_left[0] = 0
+                    bottom_right[0] += int(math.fabs(dx))
+                elif bottom_right[0] > global_width:
+                    pad_columns = np.zeros((global_height, int(math.fabs(dx)), 3), dtype=np.uint8)
+                    global_frame = np.hstack((global_frame, pad_columns))
+                    global_width += int(math.fabs(dx))
+                else:
+                    pass
+                if top_left[1] < 0:
+                    pad_rows = np.zeros((int(math.fabs(dy)), global_width, 3), dtype=np.uint8)
+                    global_frame = np.vstack((pad_rows, global_frame))
+                    global_height += int(math.fabs(dy))
+                    top_left[1] = 0
+                    bottom_right[1] += int(math.fabs(dy))
+                elif bottom_right[1] > global_height:
+                    pad_rows = np.zeros((int(math.fabs(dy)), global_width, 3), dtype=np.uint8)
+                    global_frame = np.vstack((global_frame, pad_rows))
+                    global_height += int(math.fabs(dy))
+                else:
+                    pass
 
                 rows, columns = image1.shape
                 frame_stabilized = cv2.warpAffine(frame, m, (columns, rows))
@@ -115,10 +143,15 @@ def stabilize_frame_standalone(filename):
                 frame_before = frame
                 frame = frame_stabilized
 
-            # display_frame[top_left[1]:top_left[1]+FRAME_HEIGHT, top_left[0]:top_left[0]+FRAME_WIDTH, :] = frame
+            global_frame[top_left[1]:top_left[1]+FRAME_HEIGHT, top_left[0]:top_left[0]+FRAME_WIDTH, :] = frame
+            print(f"Top left: {top_left}, Bottom Right: {bottom_right}")
+            
+            display_frame = global_frame.copy()
+            cv2.rectangle(display_frame, (top_left[0], top_left[1]), (bottom_right[0], bottom_right[1]),
+                          (0, 255, 255), 3)
 
             imshow_resized('stabilized', frame)
-            # imshow_resized('big picture', display_frame)
+            imshow_resized('big picture', display_frame)
 
             frame_count += 1
 
@@ -130,3 +163,7 @@ def stabilize_frame_standalone(filename):
 
     cap.release()
     cv2.destroyAllWindows()
+
+
+if __name__ == '__main__':
+    stabilize_frame_standalone('panning_video.mp4')
