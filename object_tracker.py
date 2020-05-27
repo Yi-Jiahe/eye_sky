@@ -148,72 +148,72 @@ def motion_based_multi_object_tracking(filename):
 
             start_time = time.time()
 
-            if frame_count == 0:
-                frame_before = frame
-            elif frame_count >= 1:
-                # Frame stabilization
-                stabilized_frame, dx, dy = stabilize_frame(frame_before, frame)
-
-                movement_threshold = 2
-                if math.fabs(dx) > movement_threshold or math.fabs(dy) > movement_threshold:
-                    translating = True
-                else:
-                    translating = False
-
-                if not scene_transitioning and translating:    # Start moving
-                    scene_transitioning = True
-                    # Delete all tracks from previous scene
-                    tracks.clear()
-                elif scene_transitioning and not translating:    # Stop moving
-                    scene_transitioning = False
-                    scene_log.append([])
-                else:  # scene_transitioning == translating implies no change in state to be made
-                    pass
-
-                frame_before = frame
-                frame = stabilized_frame
+            absolute_translation = 0
+            # if frame_count == 0:
+            #     frame_before = frame
+            # elif frame_count >= 1:
+            #     # Frame stabilization
+            #     stabilized_frame, dx, dy = stabilize_frame(frame_before, frame)
+            #
+            #     absolute_translation = math.sqrt(dx**2 + dy**2)
+            #     movement_threshold = 3
+            #     if absolute_translation > movement_threshold:
+            #         translating = True
+            #     else:
+            #         translating = False
+            #
+            #     if not scene_transitioning and translating:  # Start moving
+            #         scene_transitioning = True
+            #     elif scene_transitioning and not translating:  # Stop moving
+            #         scene_transitioning = False
+            #         scene_log.append([])
+            #     else:  # scene_transitioning and translating implies no change in state to be made
+            #         pass
+            #
+            #     frame_before = frame
+            #     frame = stabilized_frame
 
             calibration_time = time.time()
 
-            if scene_transitioning == False:
-                centroids, sizes, masked = detect_objects(frame, fgbg, detector)
-                detection_time = time.time()
-                centroids_log.append(centroids)
+            centroids, sizes, masked = detect_objects(frame, fgbg, detector)
+            detection_time = time.time()
+            centroids_log.append(centroids)
 
-                predict_new_locations_of_tracks(tracks)
-                prediction_time = time.time()
+            predict_new_locations_of_tracks(tracks)
+            prediction_time = time.time()
 
-                assignments, unassigned_tracks, unassigned_detections = detection_to_track_assignment(tracks, centroids)
-                assignment_time = time.time()
+            assignments, unassigned_tracks, unassigned_detections\
+                = detection_to_track_assignment(tracks, centroids, 20*(1+0.1*(absolute_translation)))
+            assignment_time = time.time()
 
-                update_assigned_tracks(assignments, tracks, centroids, sizes)
-                update_time = time.time()
-                tracks_log.append(tracks)
+            update_assigned_tracks(assignments, tracks, centroids, sizes)
+            update_time = time.time()
+            tracks_log.append(tracks)
 
-                update_unassigned_tracks(unassigned_tracks, tracks)
-                update_unassigned_time = time.time()
-                tracks = delete_lost_tracks(tracks)
-                deletion_time = time.time()
-                next_id = create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes)
-                creation_time = time.time()
+            update_unassigned_tracks(unassigned_tracks, tracks)
+            update_unassigned_time = time.time()
+            tracks = delete_lost_tracks(tracks)
+            deletion_time = time.time()
+            next_id = create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes)
+            creation_time = time.time()
 
-                masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2RGB)
-                good_tracks = filter_tracks(frame, masked, tracks, frame_count)
-                display_time = time.time()
+            masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2RGB)
+            good_tracks = filter_tracks(frame, masked, tracks, frame_count)
+            display_time = time.time()
 
-                if good_tracks:
-                    scene_log[-1].append(good_tracks)
+            if good_tracks:
+                scene_log[-1].append(good_tracks)
 
-                print(f"The frame took {(display_time - start_time)*1000}ms in total.\n"
-                      f"Camera stabilization took {(calibration_time - start_time)*1000}ms.\n"
-                      f"Object detection took {(detection_time - calibration_time)*1000}ms.\n"
-                      f"Prediction took {(prediction_time - detection_time)*1000}ms.\n"
-                      f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n"
-                      f"Updating took {(update_time - assignment_time)*1000}ms.\n"
-                      f"Updating unassigned tracks took {(update_unassigned_time - update_time)*1000}.\n"
-                      f"Deletion took {(deletion_time - update_unassigned_time)*1000}ms.\n"
-                      f"Track creation took {(creation_time - deletion_time)*1000}ms.\n"
-                      f"Display took {(display_time - creation_time)*1000}ms.\n\n")
+            print(f"The frame took {(display_time - start_time)*1000}ms in total.\n"
+                  f"Camera stabilization took {(calibration_time - start_time)*1000}ms.\n"
+                  f"Object detection took {(detection_time - calibration_time)*1000}ms.\n"
+                  f"Prediction took {(prediction_time - detection_time)*1000}ms.\n"
+                  f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n"
+                  f"Updating took {(update_time - assignment_time)*1000}ms.\n"
+                  f"Updating unassigned tracks took {(update_unassigned_time - update_time)*1000}.\n"
+                  f"Deletion took {(deletion_time - update_unassigned_time)*1000}ms.\n"
+                  f"Track creation took {(creation_time - deletion_time)*1000}ms.\n"
+                  f"Display took {(display_time - creation_time)*1000}ms.\n\n")
 
             out_original.write(frame)
             out_masked.write(masked)
@@ -297,7 +297,7 @@ def detect_objects(frame, fgbg, detector):
     # masked = imopen(masked, 3, 2)
     # masked = imfill(masked)
     kernel_dilation = np.ones((5, 5), np.uint8)
-    masked = cv2.dilate(masked, kernel_dilation, iterations=2)
+    masked = cv2.dilate(masked, kernel_dilation, iterations=1)
 
     # Invert frame such that black pixels are foreground
     masked = cv2.bitwise_not(masked)
@@ -324,7 +324,7 @@ def predict_new_locations_of_tracks(tracks):
 # Assigns detections to tracks using Munkre's Algorithm with cost based on euclidean distance,
 # with detections being located too far from existing tracks being designated as unassigned detections
 # and tracks without any nearby detections being designated as unassigned tracks
-def detection_to_track_assignment(tracks, centroids):
+def detection_to_track_assignment(tracks, centroids, cost_of_non_assignment):
     # start_time = time.time()
     m, n = len(tracks), len(centroids)
     k, l = min(m, n), max(m, n)
@@ -343,7 +343,6 @@ def detection_to_track_assignment(tracks, centroids):
         cost[i, :n] = np.array([distance.euclidean(track_location, centroid) for centroid in centroids])
     # distance_time = time.time()
 
-    cost_of_non_assignment = 20
     unassigned_track_cost = cost_of_non_assignment
     unassigned_detection_cost = cost_of_non_assignment
 
