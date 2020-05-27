@@ -116,8 +116,8 @@ def motion_based_multi_object_tracking(filename):
 
     global FPS, FRAME_WIDTH, FRAME_HEIGHT, SCALE_FACTOR
     FPS = int(cap.get(cv2.CAP_PROP_FPS))
-    FRAME_WIDTH = int(cap.get(3))
-    FRAME_HEIGHT = int(cap.get(4))
+    FRAME_WIDTH = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    FRAME_HEIGHT = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     print(f"Video Resolution: {FRAME_WIDTH} by {FRAME_HEIGHT}")
     # The scaling factor is the ratio of the diagonal of the input frame
     # to the video used to test the parameters, which in this case is 848x480

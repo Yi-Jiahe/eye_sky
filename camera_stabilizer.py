@@ -48,8 +48,8 @@ def stabilize_frame(img1_in, img2_in):
 def find_global_size(filename):
     cap = cv2.VideoCapture(filename)
 
-    frame_width = int(cap.get(3))
-    frame_height = int(cap.get(4))
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     global_height, global_width = frame_height, frame_width
     origin = [0, 0]
@@ -147,8 +147,8 @@ def produce_stabilized_video(filename, global_height, global_width, origin, tran
     cap = cv2.VideoCapture(filename)
 
     fps = int(cap.get(cv2.CAP_PROP_FPS))
-    frame_width = int(cap.get(3))
-    frame_height = int(cap.get(4))
+    FRAME_WIDTH = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    FRAME_HEIGHT = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     stabilized = cv2.VideoWriter('stabilized.mp4', cv2.VideoWriter_fourcc(*'h264'),
                                    fps, (global_width, global_height))
@@ -194,8 +194,8 @@ def stabilize_frame_standalone(filename):
     cap = cv2.VideoCapture(filename)
 
     global FRAME_WIDTH, FRAME_HEIGHT
-    FRAME_WIDTH = int(cap.get(3))
-    FRAME_HEIGHT = int(cap.get(4))
+    FRAME_WIDTH = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    FRAME_HEIGHT = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     print(f"Video Resolution: {FRAME_WIDTH} by {FRAME_HEIGHT}")
 
     global_height, global_width = FRAME_HEIGHT, FRAME_WIDTH
