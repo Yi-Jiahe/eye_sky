@@ -326,20 +326,21 @@ def predict_new_locations_of_tracks(tracks):
 # and tracks without any nearby detections being designated as unassigned tracks
 def detection_to_track_assignment(tracks, centroids, cost_of_non_assignment):
     # start_time = time.time()
-    n, m = len(tracks), len(centroids)
-    k, l = min(n, m), max(n, m)
+    m, n = len(tracks), len(centroids)
+    k, l = min(m, n), max(m, n)
 
     # Create a square 2-D cost matrix with dimensions twice the size of the larger list (detections or tracks)
-    cost = np.zeros((l * 2, l * 2))
+    cost = np.zeros((k + l, k + l))
     # initialization_time = time.time()
 
     # Calculate the distance of every detection from each track,
-    # filling up the rows of the cost matrix (up to column m, the number of detections) corresponding to existing tracks
+    # filling up the rows of the cost matrix (up to column n, the number of detections) corresponding to existing tracks
+    # This creates a m x n matrix
     for i in range(len(tracks)):
         start_time_distance_loop = time.time()
         track = tracks[i]
         track_location = track.kalmanFilter.x[:2]
-        cost[i, :m] = np.array([distance.euclidean(track_location, centroid) for centroid in centroids])
+        cost[i, :n] = np.array([distance.euclidean(track_location, centroid) for centroid in centroids])
     # distance_time = time.time()
 
     unassigned_track_cost = cost_of_non_assignment
@@ -347,22 +348,22 @@ def detection_to_track_assignment(tracks, centroids, cost_of_non_assignment):
 
     extra_tracks = 0
     extra_detections = 0
-    if n > m:  # More tracks than detections
-        extra_tracks = n - m
-    elif m > n:  # More detections than tracks
-        extra_detections = m - n
+    if m > n:  # More tracks than detections
+        extra_tracks = m - n
+    elif n > m:  # More detections than tracks
+        extra_detections = n - m
     elif n == m:
         pass
 
     # Padding cost matrix with dummy columns to account for unassigned tracks
     # This is used to fill the top right corner of the cost matrix
-    detection_padding = np.ones((l, l + extra_tracks)) * unassigned_track_cost
-    cost[:l, m:] = detection_padding
+    detection_padding = np.ones((m, m)) * unassigned_track_cost
+    cost[:m, n:] = detection_padding
 
     # Padding cost matrix with dummy rows to account for unassigned detections
     # This is used to fill the bottom left corner of the cost matrix
-    track_padding = np.ones((l + extra_detections, l)) * unassigned_detection_cost
-    cost[n:, :l] = track_padding
+    track_padding = np.ones((n, n)) * unassigned_detection_cost
+    cost[m:, :n] = track_padding
     # padding_time = time.time()
 
     # The bottom right corner of the cost matrix, corresponding to dummy detections being matched to dummy tracks
@@ -376,15 +377,15 @@ def detection_to_track_assignment(tracks, centroids, cost_of_non_assignment):
 
     # Assignments within the top left corner corresponding to existing tracks and detections
     # are designated as (valid) assignments
-    assignments = assignments_all[(assignments_all < [n, m]).all(axis=1)]
+    assignments = assignments_all[(assignments_all < [m, n]).all(axis=1)]
     # Assignments within the top right corner corresponding to existing tracks matched with dummy detections
     # are designated as unassigned tracks and will later be regarded as invisible
     unassigned_tracks = assignments_all[
-        (assignments_all >= [0, m]).all(axis=1) & (assignments_all < [l, l * 2]).all(axis=1)]
+        (assignments_all >= [0, n]).all(axis=1) & (assignments_all < [m, k + l]).all(axis=1)]
     # Assignments within the bottom left corner corresponding to detections matched to dummy tracks
     # are designated as unassigned detections and will generate a new track
     unassigned_detections = assignments_all[
-        (assignments_all >= [n, 0]).all(axis=1) & (assignments_all < [l * 2, l]).all(axis=1)]
+        (assignments_all >= [m, 0]).all(axis=1) & (assignments_all < [k + l, n]).all(axis=1)]
     # sorting_time = time.time()
 
     # print(f"Initialization took {initialization_time - start_time}ms.\n"
