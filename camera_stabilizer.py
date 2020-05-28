@@ -4,6 +4,25 @@ import numpy as np
 import time
 
 
+class Camera:
+    def __init__(self, frame_shape):
+        # Generic matrices, perform calibration if possible
+        self.cameraMatrix = np.array([[600, 0., frame_shape[0]/2],
+                                      [0., 600, frame_shape[1]/2],
+                                      [0., 0., 1.]])
+        self.distortionCoefficients = np.array([-0.05,
+                                                0.05,
+                                                0.,
+                                                0.,
+                                                -0.002])
+
+    def calibrate(self, calibration_images):
+        pass
+
+    def undistort(self, frame):
+        return cv2.undistort(frame, self.cameraMatrix, self.distortionCoefficients)
+
+
 def imshow_resized(window_name, img):
     window_size = (int(848), int(480))
     img = cv2.resize(img, window_size, interpolation=cv2.INTER_CUBIC)
@@ -55,6 +74,8 @@ def find_global_size(filename):
     origin = [0, 0]
     top_left, bottom_right = [0, 0], [frame_width, frame_height]
 
+    camera = Camera([frame_width, frame_height])
+
     frame_count = 0
 
     transformations = []
@@ -65,6 +86,11 @@ def find_global_size(filename):
         transformations.append([])
 
         if ret:
+            imshow_resized('original', frame)
+
+            frame = camera.undistort(frame)
+
+            imshow_resized('corrected', frame)
             if frame_count == 0:
                 frame_before = frame
             elif frame_count >= 1:
@@ -147,13 +173,15 @@ def produce_stabilized_video(filename, global_height, global_width, origin, tran
     cap = cv2.VideoCapture(filename)
 
     fps = int(cap.get(cv2.CAP_PROP_FPS))
-    FRAME_WIDTH = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    FRAME_HEIGHT = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     stabilized = cv2.VideoWriter('stabilized.mp4', cv2.VideoWriter_fourcc(*'h264'),
                                    fps, (global_width, global_height))
 
     global_frame = np.zeros((global_height, global_width, 3), dtype=np.uint8)
+
+    camera = Camera([frame_width, frame_height])
 
     frame_count = 0
 
@@ -161,6 +189,8 @@ def produce_stabilized_video(filename, global_height, global_width, origin, tran
         ret, frame = cap.read()
 
         if ret:
+            frame = camera.undistort(frame)
+
             if frame_count == 0:
                 pass
             elif frame_count >= 1:

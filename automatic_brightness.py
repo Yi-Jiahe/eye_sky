@@ -87,7 +87,7 @@ def display_histograms(filename):
 
             # masked = cv2.convertScaleAbs(frame, alpha=1, beta=128)
 
-            masked = threshold_trunc_rgb(frame)
+            masked = threshold_rgb(frame)
 
             imshow_resized('adjusted', masked)
 
@@ -128,4 +128,4 @@ def threshold_rgb(frame, threshold_r=127, threshold_g=127, threshold_b=127):
 
 
 if __name__ == '__main__':
-    display_histograms('drones_in_sky.mp4')
+    display_histograms('tiny_drones.mp4')
