@@ -262,7 +262,15 @@ def produce_stabilized_video(filename, global_height, global_width, origin, tran
                 rows, columns, _ = frame.shape
                 frame = cv2.warpAffine(frame, m, (columns, rows))
 
-            global_frame[origin[1]:origin[1] + frame_height, origin[0]:origin[0] + frame_width, :] = frame
+            ROI = global_frame[origin[1]:origin[1] + frame_height, origin[0]:origin[0] + frame_width]
+
+            mask_inv = cv2.bitwise_not(mask)
+            ROI_with_hole = cv2.bitwise_and(ROI, ROI, mask=mask_inv)
+            desired_part_of_frame = cv2.bitwise_and(frame, frame, mask=mask)
+
+            dst = cv2.add(ROI_with_hole, desired_part_of_frame)
+
+            global_frame[origin[1]:origin[1] + frame_height, origin[0]:origin[0] + frame_width] = dst
 
             stabilized.write(global_frame)
 
