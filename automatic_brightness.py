@@ -2,6 +2,7 @@ import cv2
 import numpy as np
 from matplotlib import pyplot as plt
 
+from camera_stabilizer import Camera
 
 class DynamicHistogram:
     def __init__(self, bins):
@@ -25,7 +26,7 @@ class DynamicHistogram:
         self.ax.set_xlim(0, self.bins - 1)
         self.ax.set_ylim(0, 1)
 
-    def plot(self, frame):
+    def plot(self, frame, mask=None):
         num_pixels = np.prod(frame.shape[:2])
 
         if len(frame.shape) == 3:
@@ -35,9 +36,9 @@ class DynamicHistogram:
             g = frame[:, :, 1]
             r = frame[:, :, 2]
 
-            histogram_r = cv2.calcHist([r], [0], None, [self.bins], [0, 256]) / num_pixels
-            histogram_g = cv2.calcHist([g], [0], None, [self.bins], [0, 256]) / num_pixels
-            histogram_b = cv2.calcHist([b], [0], None, [self.bins], [0, 256]) / num_pixels
+            histogram_r = cv2.calcHist([r], [0], mask, [self.bins], [0, 256]) / num_pixels
+            histogram_g = cv2.calcHist([g], [0], mask, [self.bins], [0, 256]) / num_pixels
+            histogram_b = cv2.calcHist([b], [0], mask, [self.bins], [0, 256]) / num_pixels
 
             self.line_r.set_ydata(histogram_r)
             self.line_g.set_ydata(histogram_g)
@@ -48,7 +49,7 @@ class DynamicHistogram:
         else:
             gray = frame
 
-        histogram_gray = cv2.calcHist([gray], [0], None, [self.bins], [0, 256]) / num_pixels
+        histogram_gray = cv2.calcHist([gray], [0], mask, [self.bins], [0, 256]) / num_pixels
 
         self.line_gray.set_ydata(histogram_gray)
 
@@ -64,6 +65,11 @@ def imshow_resized(window_name, img):
 
 def display_histograms(filename):
     cap = cv2.VideoCapture(filename)
+
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    camera = Camera([frame_width, frame_height])
 
     bins = 16
 
@@ -81,17 +87,19 @@ def display_histograms(filename):
         ret, frame = cap.read()
 
         if ret:
+            frame, mask = camera.undistort(frame)
+
             imshow_resized('frame', frame)
 
-            original.plot(frame)
+            original.plot(frame, mask)
 
-            # masked = cv2.convertScaleAbs(frame, alpha=1, beta=128)
+            # masked = cv2.convertScaleAbs(frame, alpha=2, beta=128)
 
             masked = threshold_rgb(frame)
 
             imshow_resized('adjusted', masked)
 
-            adjusted.plot(masked)
+            adjusted.plot(masked, mask)
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -128,4 +136,4 @@ def threshold_rgb(frame, threshold_r=127, threshold_g=127, threshold_b=127):
 
 
 if __name__ == '__main__':
-    display_histograms('tiny_drones.mp4')
+    display_histograms('stabilized.mp4')

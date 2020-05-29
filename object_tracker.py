@@ -279,7 +279,7 @@ def detect_objects(frame, fgbg, detector):
     # formula is im_out = alpha * im_in + beta
     # Therefore to change brightness before contrast, we need to do alpha = 1 first
     masked = cv2.convertScaleAbs(frame, alpha=1, beta=0)
-    masked = cv2.convertScaleAbs(masked, alpha=2, beta=128)
+    # masked = cv2.convertScaleAbs(masked, alpha=2, beta=128)
     # masked = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
 
     # Subtract Background

@@ -51,7 +51,7 @@ class Camera:
             cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
 
         self.export_calibration_results()
-                
+
     def import_calibration_results(self):
         with open('camera_parameters.txt') as file:
             data = json.loads(file.read())
@@ -60,17 +60,23 @@ class Camera:
         print(f"Camera matrix: \n {np.array(data['camera_matrix'])}\n"
               f"Distortion Coefficients: \n {np.array(data['distortion_coefficients'])}")
 
-        print()
-
     def export_calibration_results(self):
         with open('camera_parameters.txt', 'w+') as file:
             file.write(json.dumps({"camera_matrix":  self.cameraMatrix.tolist(),
                                    "distortion_coefficients": self.distortionCoefficients.tolist()}))
 
-
     def undistort(self, frame):
         # getOptimalNewCameraMatrix()
-        return cv2.undistort(frame, self.cameraMatrix, self.distortionCoefficients)
+
+        frame_undistorted = cv2.undistort(frame, self.cameraMatrix, self.distortionCoefficients)
+
+        mask = cv2.cvtColor(frame_undistorted, cv2.COLOR_BGR2GRAY)
+
+        contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        cv2.drawContours(mask, contours, -1, 255, -1)
+
+        return frame_undistorted, mask
 
 
 def imshow_resized(window_name, img):
@@ -138,7 +144,7 @@ def find_global_size(filename):
         if ret:
             imshow_resized('original', frame)
 
-            frame = camera.undistort(frame)
+            frame, mask = camera.undistort(frame)
 
             imshow_resized('corrected', frame)
             if frame_count == 0:
@@ -239,7 +245,7 @@ def produce_stabilized_video(filename, global_height, global_width, origin, tran
         ret, frame = cap.read()
 
         if ret:
-            frame = camera.undistort(frame)
+            frame, mask = camera.undistort(frame)
 
             if frame_count == 0:
                 pass
@@ -388,6 +394,29 @@ def stabilize_frame_standalone(filename):
 
     cap.release()
     cv2.destroyAllWindows()
+
+
+def create_mask_from_undistort_test(filename):
+    cap = cv2.VideoCapture(filename)
+
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    camera = Camera([frame_width, frame_height])
+
+    while cap.isOpened():
+        ret, frame = cap.read()
+
+        if ret:
+            frame, mask = camera.undistort(frame)
+
+            imshow_resized('mask', mask)
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+        else:
+            break
 
 
 if __name__ == '__main__':
