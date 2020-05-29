@@ -117,7 +117,7 @@ def threshold_rgb(frame, threshold_r=127, threshold_g=127, threshold_b=127):
     # Such that the mask covers all pixels where blue green or red values are above their respective thresholds
     mask = thresh_r | thresh_g | thresh_b
     mask = cv2.bitwise_not(mask)
-    mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB)
+    mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
 
     frame_inv = cv2.bitwise_not(frame)
 

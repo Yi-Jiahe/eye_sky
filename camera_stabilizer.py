@@ -1,6 +1,7 @@
 import cv2
 import math
 import numpy as np
+import json
 import time
 
 
@@ -16,10 +17,59 @@ class Camera:
                                                 0.,
                                                 -0.002])
 
-    def calibrate(self, calibration_images):
-        pass
+    # This function assumes a regular 7 x 6 chessboard pattern is used for the calibration
+    def calibrate_camera(self, calibration_images):
+        # Termination criteria for cornerSubPix
+        criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
+
+        # Prepare object points
+        # This creates a 2-D set of regularly spaced points positioned in 3-D such that z=0
+        # i.e. it assumes that the calibration pattern is regular and flat
+        objp = np.zeros((6 * 7, 3), np.float32)
+        objp[:, :2] = np.mgrid[0:7, 0:6].T.reshape(-1, 2)
+
+        # Arrays to store object points and image points from all the images.
+        objpoints = []  # 3d points of object in real world space (Its going to all be the same since we assume the same
+                        # object is used for the calibration)
+        imgpoints = []  # 2d points in image plane
+
+        for image in calibration_images:
+            frame = cv2.imread(image)
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+            # Find chessboard
+            ret, corners = cv2.findChessboardCorners(gray, (7, 6), None)
+
+            if ret:
+                objpoints.append(objp)
+
+                corners_refined = cv2.cornerSubPix(gray, corners, (11,11), (-1,-1), criteria)
+
+                imgpoints.append(corners_refined)
+
+        ret, self.cameraMatrix,self.distortionCoefficients, _, _ = \
+            cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1], None, None)
+
+        self.export_calibration_results()
+                
+    def import_calibration_results(self):
+        with open('camera_parameters.txt') as file:
+            data = json.loads(file.read())
+            self.cameraMatrix = np.array(data['camera_matrix'])
+            self.distortionCoefficients = np.array(data['distortion_coefficients'])
+        print(f"Camera matrix: \n {np.array(data['camera_matrix'])}\n"
+              f"Distortion Coefficients: \n {np.array(data['distortion_coefficients'])}")
+
+        print()
+
+    def export_calibration_results(self):
+        with open('camera_parameters.txt', 'w+') as file:
+            file.write(json.dumps({"camera_matrix":  self.cameraMatrix.tolist(),
+                                   "distortion_coefficients": self.distortionCoefficients.tolist()}))
+
 
     def undistort(self, frame):
+        # getOptimalNewCameraMatrix()
         return cv2.undistort(frame, self.cameraMatrix, self.distortionCoefficients)
 
 

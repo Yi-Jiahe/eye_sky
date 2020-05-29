@@ -94,7 +94,7 @@ def remove_ground(im_in, dilation_iterations, background_contour_circularity):
 
     # # This bit is used to find a suitable level of dilation to remove background objects
     # # while keeping objects to be detected
-    # im_debug = cv2.cvtColor(dilated.copy(), cv2.COLOR_GRAY2RGB)
+    # im_debug = cv2.cvtColor(dilated.copy(), cv2.COLOR_GRAY2BGR)
     # cv2.drawContours(im_debug, background_contours, -1, (0, 255, 0), 3)
     # imshow_resized('original', im_in)
     # imshow_resized('to_be_removed', im_debug)
@@ -197,7 +197,7 @@ def motion_based_multi_object_tracking(filename):
             next_id = create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes)
             creation_time = time.time()
 
-            masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2RGB)
+            masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
             good_tracks = filter_tracks(frame, masked, tracks, frame_count)
             display_time = time.time()
 
@@ -280,7 +280,7 @@ def detect_objects(frame, fgbg, detector):
     # Therefore to change brightness before contrast, we need to do alpha = 1 first
     masked = cv2.convertScaleAbs(frame, alpha=1, beta=0)
     masked = cv2.convertScaleAbs(masked, alpha=2, beta=128)
-    # masked = cv2.cvtColor(masked, cv2.COLOR_RGB2GRAY)
+    # masked = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
 
     # Subtract Background
     # Learning rate affects how often the model is updated
