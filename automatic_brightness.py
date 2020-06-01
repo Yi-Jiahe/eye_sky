@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 
 from camera_stabilizer import Camera
 
+
 class DynamicHistogram:
     def __init__(self, bins):
         self.bins = bins
@@ -15,6 +16,7 @@ class DynamicHistogram:
         self.line_g, = self.ax.plot(np.arange(bins), np.zeros((self.bins,)), c='g', lw=1, alpha=alpha)
         self.line_b, = self.ax.plot(np.arange(bins), np.zeros((self.bins,)), c='b', lw=1, alpha=alpha)
         self.line_gray, = self.ax.plot(np.arange(bins), np.zeros((self.bins,)), c='k', lw=3)
+        self.line_cumulative_gray, = self.ax.plot(np.arange(bins), np.zeros(self.bins), c='k', lw=1)
 
     def initialize_plot(self):
         # Initialize plot.
@@ -27,31 +29,34 @@ class DynamicHistogram:
         self.ax.set_ylim(0, 1)
 
     def plot(self, frame, mask=None):
-        num_pixels = np.prod(frame.shape[:2])
+        if len(frame.shape) == 3:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = frame
+
+        histogram_gray = cv2.calcHist([gray], [0], mask, [self.bins], [0, 256])
+
+        num_frames_in_mask = sum(histogram_gray)
+
+        self.line_gray.set_ydata(histogram_gray/num_frames_in_mask)
+
+        cumulative_histogram = np.zeros((1, self.bins))
+        for i, bin_value in enumerate(histogram_gray / num_frames_in_mask):
+            if i == 0:
+                cumulative_histogram[0, i] = bin_value
+            else:
+                cumulative_histogram[0, i] = cumulative_histogram[0, i - 1] + bin_value
+
+        self.line_cumulative_gray.set_ydata(cumulative_histogram)
 
         if len(frame.shape) == 3:
-            # cv2.split() is an expensive function, thus numpy indexing is preferred
-            # (b, g, r) = cv2.split(frame)
-            b = frame[:, :, 0]
-            g = frame[:, :, 1]
-            r = frame[:, :, 2]
-
-            histogram_r = cv2.calcHist([r], [0], mask, [self.bins], [0, 256]) / num_pixels
-            histogram_g = cv2.calcHist([g], [0], mask, [self.bins], [0, 256]) / num_pixels
-            histogram_b = cv2.calcHist([b], [0], mask, [self.bins], [0, 256]) / num_pixels
+            histogram_r = cv2.calcHist([frame], [2], mask, [self.bins], [0, 256])/num_frames_in_mask
+            histogram_g = cv2.calcHist([frame], [1], mask, [self.bins], [0, 256])/num_frames_in_mask
+            histogram_b = cv2.calcHist([frame], [0], mask, [self.bins], [0, 256])/num_frames_in_mask
 
             self.line_r.set_ydata(histogram_r)
             self.line_g.set_ydata(histogram_g)
             self.line_b.set_ydata(histogram_b)
-
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        else:
-            gray = frame
-
-        histogram_gray = cv2.calcHist([gray], [0], mask, [self.bins], [0, 256]) / num_pixels
-
-        self.line_gray.set_ydata(histogram_gray)
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
@@ -71,7 +76,7 @@ def display_histograms(filename):
 
     camera = Camera([frame_width, frame_height])
 
-    bins = 16
+    bins = 32
 
     original = DynamicHistogram(bins)
     adjusted = DynamicHistogram(bins)
@@ -136,4 +141,4 @@ def threshold_rgb(frame, threshold_r=127, threshold_g=127, threshold_b=127):
 
 
 if __name__ == '__main__':
-    display_histograms('stabilized.mp4')
+    display_histograms('thailand_vid.mp4')
