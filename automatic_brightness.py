@@ -100,6 +100,8 @@ def display_histograms(filename):
 
             # masked = cv2.convertScaleAbs(frame, alpha=2, beta=128)
 
+            # masked = equalize_hist_rgb(frame)
+
             masked = threshold_rgb(frame)
 
             imshow_resized('adjusted', masked)
@@ -138,6 +140,18 @@ def threshold_rgb(frame, threshold_r=127, threshold_g=127, threshold_b=127):
     out = cv2.bitwise_not(out)
 
     return out
+
+
+def equalize_hist_rgb(frame):
+    b = frame[:, :, 0]
+    g = frame[:, :, 1]
+    r = frame[:, :, 2]
+
+    r_out = cv2.equalizeHist(r)
+    g_out = cv2.equalizeHist(g)
+    b_out = cv2.equalizeHist(b)
+
+    return cv2.merge((b_out, g_out, r_out))
 
 
 if __name__ == '__main__':
