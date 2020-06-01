@@ -30,6 +30,8 @@ class DynamicHistogram:
 
     def plot(self, frame, mask=None):
         if len(frame.shape) == 3:
+            # Note: RGB to gray conversion is given as follows:
+            # Y = 0.299 R + 0.587 G + 0.114 B (Note the high weight on green and low weight on blue.
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         else:
             gray = frame

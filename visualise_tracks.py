@@ -1,6 +1,8 @@
 from object_tracker import motion_based_multi_object_tracking
+from object_tracker import track_objects_realtime
 import math
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 
 class TrackPlot():
@@ -20,7 +22,6 @@ def plot_tracks(scenes):
     fps = scenes[0][0]
     frame_width, frame_height = scenes[0][1], scenes[0][2]
     scenes = scenes[1:]
-
 
     for scene in scenes:
         track_ids = []
@@ -53,6 +54,41 @@ def plot_tracks(scenes):
         plt.show()
 
 
+def plot_tracks_realtime(generator):
+    # fig, ax = plt.subplots()
+    #
+    # plt.ion()
+    # plt.show()
+
+    origin = [0, 0]
+
+    track_ids = []
+    track_plots = []
+
+    for item in generator:
+        origin[0] -= item[1]
+        origin[1] -= item[2]
+        print(origin)
+        for track in item[0]:
+            track_id = track[0]
+
+            if track_id not in track_ids:  # First occurrence of the track
+                track_ids.append(track_id)
+                track_plots.append(TrackPlot(track_id))
+
+            track_plot = track_plots[track_ids.index(track_id)]
+            track_plot.xs.append(track[3][0] - origin[0])
+            track_plot.ys.append(-(track[3][1] - origin[1]))
+
+        #     ax.scatter(track_plot.xs, track_plot.ys)
+        #
+        # fig.canvas.draw()
+        # fig.canvas.flush_events()
+
+
+def animate():
+    pass
+
 def scalar_to_hex(scalar_value, max_value):
     f = scalar_value / max_value
     a = (1-f)*5
@@ -72,4 +108,6 @@ def scalar_to_hex(scalar_value, max_value):
         return '#%02x%02x%02x' % (255, 0, 255)
 
 
-plot_tracks(motion_based_multi_object_tracking('stabilized.mp4'))
+if __name__ == "__main__":
+    # plot_tracks(motion_based_multi_object_tracking('tiny_drones.mp4'))
+    plot_tracks_realtime(track_objects_realtime())
