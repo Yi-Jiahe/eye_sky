@@ -3,7 +3,8 @@ from object_tracker import track_objects_realtime
 import math
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
-
+import time
+import multiprocessing
 
 class TrackPlot():
     def __init__(self, track_id):
@@ -19,6 +20,8 @@ class TrackPlot():
 
 
 def plot_tracks(scenes):
+    fig, ax = plt.subplots()
+
     fps = scenes[0][0]
     frame_width, frame_height = scenes[0][1], scenes[0][2]
     scenes = scenes[1:]
@@ -47,38 +50,36 @@ def plot_tracks(scenes):
             if len(track_plot.colourized_times) > 5 * fps:
                 # track_plot.plot_track()
                 print(f"Track {track_plot.id} being plotted...")
-                plt.scatter(track_plot.xs, track_plot.ys, c=track_plot.colourized_times, marker='+')
+                ax.scatter(track_plot.xs, track_plot.ys, c=track_plot.colourized_times, marker='+')
+                ax.annotate(track_plot.id, (track_plot.xs[-1], track_plot.ys[-1]),
+                            (track_plot.xs[-1] + 1, track_plot.ys[-1] + 1))
 
-        plt.xlim(0, frame_width)
-        plt.ylim(-frame_height, 0)
+        ax.set_xlim(0, frame_width)
+        ax.set_ylim(-frame_height, 0)
         plt.show()
 
 
-def plot_tracks_realtime(generator):
+def plot_tracks_realtime():
     # fig, ax = plt.subplots()
     #
     # plt.ion()
     # plt.show()
 
-    origin = [0, 0]
+    print('b4 loop')
 
-    track_ids = []
-    track_plots = []
+    global ORIGIN, TRACK_IDs, TRACK_PLOTs
+    ORIGIN = [0, 0]
 
-    for item in generator:
-        origin[0] -= item[1]
-        origin[1] -= item[2]
-        print(origin)
-        for track in item[0]:
-            track_id = track[0]
+    TRACK_IDs = []
+    TRACK_PLOTs = []
 
-            if track_id not in track_ids:  # First occurrence of the track
-                track_ids.append(track_id)
-                track_plots.append(TrackPlot(track_id))
+    get_results_p = multiprocessing.Process(target=get_results)
+    plot_results_p = multiprocessing.Process(target=plot_results)
 
-            track_plot = track_plots[track_ids.index(track_id)]
-            track_plot.xs.append(track[3][0] - origin[0])
-            track_plot.ys.append(-(track[3][1] - origin[1]))
+    get_results_p.start()
+    plot_results_p.start()
+
+
 
         #     ax.scatter(track_plot.xs, track_plot.ys)
         #
@@ -86,8 +87,36 @@ def plot_tracks_realtime(generator):
         # fig.canvas.flush_events()
 
 
+def get_results():
+    generator = track_objects_realtime()
+    for item in generator:
+        # ORIGIN[0] -= item[1][0]
+        # ORIGIN[1] -= item[1][1]
+
+        print(item[2])
+
+        # for track in item[0]:
+        #     track_id = track[0]
+        #
+        #     if track_id not in TRACK_IDs:  # First occurrence of the track
+        #         TRACK_IDs.append(track_id)
+        #         TRACK_PLOTs.append(TrackPlot(track_id))
+        #
+        #     track_plot = TRACK_PLOTs[TRACK_IDs.index(track_id)]
+        #     track_plot.xs.append(track[3][0] - ORIGIN[0])
+        #     track_plot.ys.append(-(track[3][1] - ORIGIN[1]))
+
+
+def plot_results():
+    while True:
+        print('Plotting...', end='\r')
+        time.sleep(1)
+        print('Plotted')
+
+
 def animate():
     pass
+
 
 def scalar_to_hex(scalar_value, max_value):
     f = scalar_value / max_value
@@ -109,5 +138,5 @@ def scalar_to_hex(scalar_value, max_value):
 
 
 if __name__ == "__main__":
-    # plot_tracks(motion_based_multi_object_tracking('tiny_drones.mp4'))
-    plot_tracks_realtime(track_objects_realtime())
+    plot_tracks(motion_based_multi_object_tracking('tiny_drones.mp4'))
+    # plot_tracks_realtime()

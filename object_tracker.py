@@ -240,6 +240,8 @@ def motion_based_multi_object_tracking(filename):
 
 
 def track_objects_realtime():
+    print('capcreate')
+
     cap = cv2.VideoCapture(0)
 
     global FPS, FRAME_WIDTH, FRAME_HEIGHT, SCALE_FACTOR
@@ -290,7 +292,7 @@ def track_objects_realtime():
 
             frame_count += 1
 
-            yield good_tracks, dx, dy
+            yield good_tracks, (dx, dy), frame_count
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
