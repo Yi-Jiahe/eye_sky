@@ -5,11 +5,28 @@
 *.avi
 
 
+# Images #
+##########
+
+*.jpg
+*.png
+
+
+
 # Files for transfer #
 ######################
 
 *.zip
 Transfer
+
+
+# Calibration Images #
+######################
+
+calibration_images
+
+
+
 
 
 # Other folders #

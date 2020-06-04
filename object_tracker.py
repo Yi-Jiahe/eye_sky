@@ -6,6 +6,7 @@ from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
+from automatic_brightness import threshold_rgb
 
 import time
 
@@ -123,6 +124,8 @@ def motion_based_multi_object_tracking(filename):
     # to the video used to test the parameters, which in this case is 848x480
     SCALE_FACTOR = math.sqrt(FRAME_WIDTH**2 + FRAME_HEIGHT**2)/math.sqrt(848**2 + 480**2)
     print(f"Scaling Factor: {SCALE_FACTOR}")
+
+    SCALE_FACTOR = 2.26
 
     out_original = cv2.VideoWriter('out_original.mp4', cv2.VideoWriter_fourcc(*'h264'),
                                    FPS, (FRAME_WIDTH, FRAME_HEIGHT))
@@ -347,13 +350,15 @@ def detect_objects(frame, fgbg, detector):
     masked = cv2.convertScaleAbs(masked, alpha=2, beta=128)
     # masked = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
 
+    # masked = threshold_rgb(frame)
+
     # Subtract Background
     # Learning rate affects how often the model is updated
     # High values > 0.5 tend to lead to patchy output
     # Found that 0.1 - 0.3 is a good range
     masked = fgbg.apply(masked, learningRate=-1)
 
-    masked = remove_ground(masked, 13, 0.7)
+    masked = remove_ground(masked, int(13/(2.26/SCALE_FACTOR)), 0.7)
 
     # Morphological Transforms
     # Close to remove black spots
@@ -362,7 +367,7 @@ def detect_objects(frame, fgbg, detector):
     # masked = imopen(masked, 3, 2)
     # masked = imfill(masked)
     kernel_dilation = np.ones((5, 5), np.uint8)
-    masked = cv2.dilate(masked, kernel_dilation, iterations=1)
+    masked = cv2.dilate(masked, kernel_dilation, iterations=2)
 
     # Invert frame such that black pixels are foreground
     masked = cv2.bitwise_not(masked)

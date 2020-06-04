@@ -81,7 +81,7 @@ def plot_tracks_realtime():
 
 
 
-        #     ax.scatter(track_plot.xs, track_plot.ys)
+        # ax.scatter(track_plot.xs, track_plot.ys)
         #
         # fig.canvas.draw()
         # fig.canvas.flush_events()
@@ -114,10 +114,6 @@ def plot_results():
         print('Plotted')
 
 
-def animate():
-    pass
-
-
 def scalar_to_hex(scalar_value, max_value):
     f = scalar_value / max_value
     a = (1-f)*5
@@ -138,5 +134,5 @@ def scalar_to_hex(scalar_value, max_value):
 
 
 if __name__ == "__main__":
-    plot_tracks(motion_based_multi_object_tracking('tiny_drones.mp4'))
+    plot_tracks(motion_based_multi_object_tracking('stabilized.mp4'))
     # plot_tracks_realtime()

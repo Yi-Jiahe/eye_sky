@@ -52,8 +52,8 @@ class Camera:
 
         self.export_calibration_results()
 
-    def import_calibration_results(self):
-        with open('camera_parameters.txt') as file:
+    def import_calibration_results(self, filename):
+        with open(filename) as file:
             data = json.loads(file.read())
             self.cameraMatrix = np.array(data['camera_matrix'])
             self.distortionCoefficients = np.array(data['distortion_coefficients'])

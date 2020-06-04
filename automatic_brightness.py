@@ -100,13 +100,14 @@ def display_histograms(filename):
 
             original.plot(frame, mask)
 
-            # masked = cv2.convertScaleAbs(frame, alpha=2, beta=128)
+            masked = cv2.convertScaleAbs(frame, alpha=2, beta=128)
 
             # masked = equalize_hist_rgb(frame)
 
             masked = threshold_rgb(frame)
 
             imshow_resized('adjusted', masked)
+            # cv2.imshow("adj", masked)
 
             adjusted.plot(masked, mask)
 
