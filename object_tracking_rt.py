@@ -55,7 +55,9 @@ def remove_ground(im_in, dilation_iterations, background_contour_circularity):
 
 
 def imshow_resized(window_name, img):
-    window_size = (int(848), int(480))
+    aspect_ratio = img.shape[0]/img.shape[1]
+
+    window_size = (int(600), int(600*aspect_ratio))
     img = cv2.resize(img, window_size, interpolation=cv2.INTER_CUBIC)
     cv2.imshow(window_name, img)
 
@@ -105,6 +107,7 @@ def track_objects_realtime():
             tracks = delete_lost_tracks(tracks)
             next_id = create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes)
 
+            return_frame = frame.copy()
             masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
             good_tracks = filter_tracks(frame, masked, tracks, frame_count)
 
@@ -113,7 +116,7 @@ def track_objects_realtime():
 
             frame_count += 1
 
-            yield good_tracks, (dx, dy), frame_count
+            yield good_tracks, (dx, dy), frame_count, return_frame
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -170,11 +173,17 @@ def detect_objects(frame, fgbg, detector):
 
     # masked = threshold_rgb(frame)
 
+    masked = cv2.GaussianBlur(masked, (5, 5), 0)
+
+    imshow_resized("pre-background subtraction", masked)
+
     # Subtract Background
     # Learning rate affects how often the model is updated
     # High values > 0.5 tend to lead to patchy output
     # Found that 0.1 - 0.3 is a good range
     masked = fgbg.apply(masked, learningRate=-1)
+
+    imshow_resized("background subtracted", masked)
 
     masked = remove_ground(masked, int(13/(2.26/SCALE_FACTOR)), 0.7)
 
