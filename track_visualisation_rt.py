@@ -1,5 +1,4 @@
-from object_tracker import motion_based_multi_object_tracking
-from object_tracker import track_objects_realtime
+from object_tracking_rt import track_objects_realtime
 import math
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -26,46 +25,6 @@ class TrackPlot():
         self.ys.append(location[1] + offset[1])
         self.frameNos.append(frame_no)
         self.lastSeen = frame_no
-
-
-def plot_tracks(scenes):
-    fig, ax = plt.subplots()
-
-    fps = scenes[0][0]
-    frame_width, frame_height = scenes[0][1], scenes[0][2]
-    scenes = scenes[1:]
-
-    for scene in scenes:
-        track_ids = []
-        track_plots = []
-
-        frame_count = len(scene)
-        for frame in scene:
-            idx = scene.index(frame)
-            for track in frame:
-                track_id = track[0]
-
-                if track_id not in track_ids:   # First occurrence of the track
-                    track_ids.append(track_id)
-                    track_plots.append(TrackPlot(track_id))
-
-                track_plot = track_plots[track_ids.index(track_id)]
-                track_plot.xs.append(track[3][0])
-                track_plot.ys.append(-track[3][1])
-                track_plot.colourized_times.append(scalar_to_hex(idx, frame_count))
-
-        for track_plot in track_plots:
-            print(f"Track {track_plot.id} is {len(track_plot.colourized_times)/fps} seconds long.")
-            if len(track_plot.colourized_times) > 5 * fps:
-                # track_plot.plot_track()
-                print(f"Track {track_plot.id} being plotted...")
-                ax.scatter(track_plot.xs, track_plot.ys, c=track_plot.colourized_times, marker='+')
-                ax.annotate(track_plot.id, (track_plot.xs[-1], track_plot.ys[-1]),
-                            (track_plot.xs[-1] + 1, track_plot.ys[-1] + 1))
-
-        ax.set_xlim(0, frame_width)
-        ax.set_ylim(-frame_height, 0)
-        plt.show()
 
 
 def plot_tracks_realtime():
@@ -116,6 +75,8 @@ def plot_results(q):
     track_ids = []
     track_plots = []
 
+    plot_history = 200
+
     while True:
         while not q.empty():
             item = q.get()
@@ -132,7 +93,8 @@ def plot_results(q):
                     track_plot.update(origin, track[3], frame_no)
 
         for track_plot in track_plots:
-            ax.scatter(track_plot.xs[-20:], track_plot.ys[-20:], marker='+')
+            ax.scatter(track_plot.xs[-plot_history:], track_plot.ys[-plot_history:],
+                       marker='+')
             ax.annotate(track_plot.id, (track_plot.xs[-1], track_plot.ys[-1]),
                         (track_plot.xs[-1] + 1, track_plot.ys[-1] + 1))
 
@@ -164,5 +126,4 @@ def scalar_to_hex(scalar_value, max_value):
 
 
 if __name__ == "__main__":
-    # plot_tracks(motion_based_multi_object_tracking('stabilized.mp4'))
     plot_tracks_realtime()
