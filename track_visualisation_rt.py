@@ -22,16 +22,14 @@ class TrackPlot():
         plt.scatter(self.xs, self.ys, c=self.colourized_times, marker='+')
         plt.show()
 
-    def update(self, offset, location, frame_no):
-        self.xs = np.append(self.xs, [int(location[0] + offset[0])])
-        self.ys = np.append(self.ys, [int(location[1] + offset[1])])
+    def update(self, location, frame_no):
+        self.xs = np.append(self.xs, [int(location[0])])
+        self.ys = np.append(self.ys, [int(location[1])])
         self.frameNos = np.append(self.frameNos, [frame_no])
         self.lastSeen = frame_no
 
 
 def plot_tracks_realtime():
-    print('b4 loop')
-
     q = multiprocessing.Queue()
 
     get_results_p = multiprocessing.Process(target=get_results, args=(q,))
@@ -40,18 +38,11 @@ def plot_tracks_realtime():
     get_results_p.start()
     plot_results_p.start()
 
-        # ax.scatter(track_plot.xs, track_plot.ys)
-        #
-        # fig.canvas.draw()
-        # fig.canvas.flush_events()
-
 
 def get_results(q):
     generator = track_objects_realtime()
     for item in generator:
         q.put(item)
-
-        # print(item[2])
 
 
 def plot_results(q):
@@ -70,12 +61,24 @@ def plot_results(q):
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 0.5
 
+    # cap = cv2.VideoCapture(0)
+    # plot_out = cv2.VideoWriter('video_plot.mp4', cv2.VideoWriter_fourcc(*'h264'),
+    #                            int(cap.get(cv2.CAP_PROP_FPS)),
+    #                            (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+    # cap.release()
+
+    plot_out = cv2.VideoWriter('video_plot.mp4', cv2.VideoWriter_fourcc(*'h264'),
+                               30,
+                               (1920, 1080))
+
+    new_data = False
+
     while True:
         while not q.empty():
+            new_data = True
+
             item = q.get()
-            tracks, (dx, dy), frame_no, frame = item[0], item[1], item[2], item[3]
-            origin[0] += dx
-            origin[1] += dy
+            tracks, origin, frame_no, frame = item[0], item[1], item[2], item[3]
             for track in tracks:
                 track_id = track[0]
                 if track_id not in track_ids:  # First occurrence of the track
@@ -83,31 +86,30 @@ def plot_results(q):
                     track_plots.append(TrackPlot(track_id))
 
                 track_plot = track_plots[track_ids.index(track_id)]
-                track_plot.update(origin, track[3], frame_no)
+                track_plot.update(track[3], frame_no)
 
-        for track_plot in track_plots:
-            idxs = np.where(np.logical_and(track_plot.frameNos > frame_no-plot_history,
-                                           track_plot.frameNos <= frame_no))[0]
-            print(f"{track_plot.id}: idx {idxs}")
-            for idx in idxs:
-                cv2.circle(frame, (track_plot.xs[idx], track_plot.ys[idx]),
-                           3, colours[track_plot.frameNos[idx]-frame_no+plot_history-1][::-1], -1)
-            if not len(idxs) == 0:
-                cv2.putText(frame, str(track_plot.id), (track_plot.xs[idx], track_plot.ys[idx]),
-                            font, font_scale, (0, 0, 255), 1, cv2.LINE_AA)
-
-        try:
+        if new_data:
+            for track_plot in track_plots:
+                idxs = np.where(np.logical_and(track_plot.frameNos > frame_no-plot_history,
+                                               track_plot.frameNos <= frame_no))[0]
+                for idx in idxs:
+                    cv2.circle(frame, (track_plot.xs[idx]+origin[0], track_plot.ys[idx]+origin[1]),
+                               3, colours[track_plot.frameNos[idx]-frame_no+plot_history-1][::-1], -1)
+                if not len(idxs) == 0:
+                    cv2.putText(frame, str(track_plot.id), (track_plot.xs[idx]+origin[0], track_plot.ys[idx]+origin[1]),
+                                font, font_scale, (0, 0, 255), 1, cv2.LINE_AA)
+            plot_out.write(frame)
             imshow_resized("plot", frame)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-        except:
-            pass
+            new_data = False
 
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+    plot_out.release()
     cv2.destroyAllWindows()
 
 
-def delete_track_plots(frame_no):
-    max_unseen = 1000
+def delete_track_plots():
+    pass
 
 
 def scalar_to_hex(scalar_value, max_value):
@@ -146,6 +148,7 @@ def scalar_to_rgb(scalar_value, max_value):
         return (y, 0, 255)
     else: # x == 5:
         return (255, 0, 255)
+
 
 if __name__ == "__main__":
     plot_tracks_realtime()

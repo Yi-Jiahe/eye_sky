@@ -41,12 +41,12 @@ def remove_ground(im_in, dilation_iterations, background_contour_circularity):
         if circularity <= background_contour_circularity:
             background_contours.append(contour)
 
-    # # This bit is used to find a suitable level of dilation to remove background objects
-    # # while keeping objects to be detected
-    # im_debug = cv2.cvtColor(dilated.copy(), cv2.COLOR_GRAY2BGR)
-    # cv2.drawContours(im_debug, background_contours, -1, (0, 255, 0), 3)
+    # This bit is used to find a suitable level of dilation to remove background objects
+    # while keeping objects to be detected
+    im_debug = cv2.cvtColor(dilated.copy(), cv2.COLOR_GRAY2BGR)
+    cv2.drawContours(im_debug, background_contours, -1, (0, 255, 0), 3)
     # imshow_resized('original', im_in)
-    # imshow_resized('to_be_removed', im_debug)
+    imshow_resized('to_be_removed', im_debug)
 
     im_out = im_in.copy()
     cv2.drawContours(im_out, background_contours, -1, 0, -1)
@@ -63,15 +63,22 @@ def imshow_resized(window_name, img):
 
 
 def track_objects_realtime():
-    print('capcreate')
+    print('Start Video Capture')
 
-    cap = cv2.VideoCapture(0)
+    cap = cv2.VideoCapture("tiny_drones.mp4")
 
     global FPS, FRAME_WIDTH, FRAME_HEIGHT, SCALE_FACTOR
     FPS = int(cap.get(cv2.CAP_PROP_FPS))
     FRAME_WIDTH = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     FRAME_HEIGHT = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     SCALE_FACTOR = math.sqrt(FRAME_WIDTH**2 + FRAME_HEIGHT**2)/math.sqrt(848**2 + 480**2)
+    SCALE_FACTOR = 2.26
+
+    # recording = cv2.VideoWriter('recording.mp4', cv2.VideoWriter_fourcc(*'h264'),
+    #                             FPS, (FRAME_WIDTH, FRAME_HEIGHT))
+
+    out_combined = cv2.VideoWriter('out_real-time.mp4', cv2.VideoWriter_fourcc(*'h264'),
+                                   FPS, (FRAME_WIDTH, FRAME_HEIGHT*2))
 
     fgbg, detector = setup_system_objects()
 
@@ -79,27 +86,47 @@ def track_objects_realtime():
 
     tracks = []
 
+    fps_log = []
     frame_count = 0
 
+    frame_start = time.time()
+
+    origin = [0, 0]
+
     while cap.isOpened():
+        frame_end = time.time()
+        frame_time = frame_end - frame_start
+        if frame_time > 0.001:
+            fps_log.append(frame_time)
+        # if len(fps_log) > 5:
+        #     FPS = 1/(sum(fps_log[-5:])/5)
+
         ret, frame = cap.read()
+
+        frame_start = time.time()
+
         if ret:
             if frame_count == 0:
                 frame_before = frame
-                dx, dy = 0, 0
             elif frame_count >= 1:
                 # Frame stabilization
                 stabilized_frame, dx, dy = stabilize_frame(frame_before, frame)
+                origin[0] += int(dx)
+                origin[1] += int(dy)
 
                 frame_before = frame
                 frame = stabilized_frame
+            calibration_time = time.time()
 
-            centroids, sizes, masked = detect_objects(frame, fgbg, detector)
+            centroids, sizes, masked = detect_objects(frame, fgbg, detector, origin)
+            detection_time = time.time()
 
             predict_new_locations_of_tracks(tracks)
+            prediction_time = time.time()
 
             assignments, unassigned_tracks, unassigned_detections\
                 = detection_to_track_assignment(tracks, centroids, 20)
+            assignment_time = time.time()
 
             update_assigned_tracks(assignments, tracks, centroids, sizes)
 
@@ -109,14 +136,29 @@ def track_objects_realtime():
 
             return_frame = frame.copy()
             masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
-            good_tracks = filter_tracks(frame, masked, tracks, frame_count)
+            good_tracks = filter_tracks(frame, masked, tracks, frame_count, origin)
+
+            # recording.write(return_frame)
+
+            frame_out = np.zeros((FRAME_HEIGHT*2, FRAME_WIDTH, 3), dtype=np.uint8)
+            frame_out[0:FRAME_HEIGHT, 0:FRAME_WIDTH] = frame
+            frame_out[FRAME_HEIGHT:FRAME_HEIGHT*2, 0:FRAME_WIDTH] = masked
+            out_combined.write(frame_out)
 
             imshow_resized('frame', frame)
             imshow_resized('masked', masked)
 
+            display_time = time.time()
+
+            print(f"The frame took {(display_time - frame_start)*1000}ms in total.\n"
+                  f"Camera stabilization took {(calibration_time - frame_start)*1000}ms.\n"
+                  f"Object detection took {(detection_time - calibration_time)*1000}ms.\n"
+                  f"Prediction took {(prediction_time - detection_time)*1000}ms.\n"
+                  f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n")
+
             frame_count += 1
 
-            yield good_tracks, (dx, dy), frame_count, return_frame
+            yield good_tracks, origin, frame_count, return_frame
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
@@ -125,6 +167,8 @@ def track_objects_realtime():
             break
 
     cap.release()
+    # recording.release()
+    out_combined.release()
     cv2.destroyAllWindows()
 
 
@@ -134,7 +178,7 @@ def track_objects_realtime():
 def setup_system_objects():
     # varThreshold affects the spottiness of the image. The lower it is, the more smaller spots.
     # The larger it is, these spots will combine into large foreground areas
-    fgbg = cv2.createBackgroundSubtractorMOG2(history=int(15*FPS), varThreshold=64 * SCALE_FACTOR,
+    fgbg = cv2.createBackgroundSubtractorMOG2(history=int(10*FPS), varThreshold=64 * SCALE_FACTOR,
                                               detectShadows=False)
     # Background ratio represents the fraction of the history a frame must be present
     # to be considered part of the background
@@ -161,7 +205,7 @@ def setup_system_objects():
 #        5) Inversion to make the foreground black for the blob detector to identify foreground objects
 # Perform the blob detection on the masked image
 # Return detected blob centroids as well as size
-def detect_objects(frame, fgbg, detector):
+def detect_objects(frame, fgbg, detector, origin):
     # Adjust contrast and brightness of image to make foreground stand out more
     # alpha used to adjust contrast, where alpha < 1 reduces contrast and alpha > 1 increases it
     # beta used to increase brightness, scale of (-255 to 255) ? Needs confirmation
@@ -173,7 +217,7 @@ def detect_objects(frame, fgbg, detector):
 
     # masked = threshold_rgb(frame)
 
-    masked = cv2.GaussianBlur(masked, (5, 5), 0)
+    # masked = cv2.GaussianBlur(masked, (5, 5), 0)
 
     imshow_resized("pre-background subtraction", masked)
 
@@ -208,6 +252,7 @@ def detect_objects(frame, fgbg, detector):
     sizes = np.zeros(n_keypoints)
     for i in range(n_keypoints):
         centroids[i] = keypoints[i].pt
+        centroids[i] -= origin
         sizes[i] = keypoints[i].size
 
     return centroids, sizes, masked
@@ -419,7 +464,7 @@ def create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes):
     return next_id
 
 
-def filter_tracks(frame, masked, tracks, counter):
+def filter_tracks(frame, masked, tracks, counter, origin):
     # Actually, I feel having both might be redundant together with the deletion criteria
     min_track_age = 1.0 * FPS    # seconds * FPS to give number of frames in seconds
     # This has to be less than or equal to the minimum age or it make the minimum age redundant
@@ -434,6 +479,8 @@ def filter_tracks(frame, masked, tracks, counter):
                 size = track.size
 
                 good_tracks.append([track.id, track.age, size, (centroid[0], centroid[1])])
+
+                centroid = track.kalmanFilter.x[:2] + origin
 
                 # Display filtered tracks
                 rect_top_left = (int(centroid[0] - size/2), int(centroid[1] - size/2))

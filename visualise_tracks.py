@@ -1,5 +1,4 @@
 from object_tracker import motion_based_multi_object_tracking
-from object_tracker import track_objects_realtime
 import math
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -85,27 +84,6 @@ def plot_tracks_realtime():
         # fig.canvas.flush_events()
 
 
-def get_results(q):
-    generator = track_objects_realtime()
-    for item in generator:
-        q.put(item)
-        # ORIGIN[0] -= item[1][0]
-        # ORIGIN[1] -= item[1][1]
-
-        print(item[2])
-
-        # for track in item[0]:
-        #     track_id = track[0]
-        #
-        #     if track_id not in TRACK_IDs:  # First occurrence of the track
-        #         TRACK_IDs.append(track_id)
-        #         TRACK_PLOTs.append(TrackPlot(track_id))
-        #
-        #     track_plot = TRACK_PLOTs[TRACK_IDs.index(track_id)]
-        #     track_plot.xs.append(track[3][0] - ORIGIN[0])
-        #     track_plot.ys.append(-(track[3][1] - ORIGIN[1]))
-
-
 def plot_results(q):
     fig, ax = plt.subplots()
     plt.ion()
@@ -140,10 +118,6 @@ def plot_results(q):
         fig.canvas.flush_events()
 
 
-def delete_track_plots(frame_no):
-    max_unseen = 100
-
-
 def scalar_to_hex(scalar_value, max_value):
     f = scalar_value / max_value
     a = (1-f)*5
@@ -164,5 +138,5 @@ def scalar_to_hex(scalar_value, max_value):
 
 
 if __name__ == "__main__":
-    plot_tracks(motion_based_multi_object_tracking('tiny_drones.mp4'))
+    plot_tracks(motion_based_multi_object_tracking('stabilized.mp4'))
     # plot_tracks_realtime()

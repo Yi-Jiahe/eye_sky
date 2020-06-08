@@ -242,71 +242,6 @@ def motion_based_multi_object_tracking(filename):
     return scene_log
 
 
-def track_objects_realtime():
-    print('capcreate')
-
-    cap = cv2.VideoCapture(0)
-
-    global FPS, FRAME_WIDTH, FRAME_HEIGHT, SCALE_FACTOR
-    FPS = int(cap.get(cv2.CAP_PROP_FPS))
-    FRAME_WIDTH = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    FRAME_HEIGHT = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    SCALE_FACTOR = math.sqrt(FRAME_WIDTH**2 + FRAME_HEIGHT**2)/math.sqrt(848**2 + 480**2)
-
-    fgbg, detector = setup_system_objects()
-
-    next_id = 0
-
-    tracks = []
-
-    frame_count = 0
-
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if ret:
-            if frame_count == 0:
-                frame_before = frame
-                dx, dy = 0, 0
-            elif frame_count >= 1:
-                # Frame stabilization
-                stabilized_frame, dx, dy = stabilize_frame(frame_before, frame)
-
-                frame_before = frame
-                frame = stabilized_frame
-
-            centroids, sizes, masked = detect_objects(frame, fgbg, detector)
-
-            predict_new_locations_of_tracks(tracks)
-
-            assignments, unassigned_tracks, unassigned_detections\
-                = detection_to_track_assignment(tracks, centroids, 20)
-
-            update_assigned_tracks(assignments, tracks, centroids, sizes)
-
-            update_unassigned_tracks(unassigned_tracks, tracks)
-            tracks = delete_lost_tracks(tracks)
-            next_id = create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes)
-
-            masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
-            good_tracks = filter_tracks(frame, masked, tracks, frame_count)
-
-            imshow_resized('frame', frame)
-            imshow_resized('masked', masked)
-
-            frame_count += 1
-
-            yield good_tracks, (dx, dy), frame_count
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
-
-        else:
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
-
-
 # Create VideoCapture object to extract frames from,
 # background subtractor object and blob detector objects for object detection
 # and VideoWriters for output videos
@@ -352,11 +287,14 @@ def detect_objects(frame, fgbg, detector):
 
     # masked = threshold_rgb(frame)
 
+    # masked = cv2.GaussianBlur(masked, (5, 5), 0)
+
     # Subtract Background
     # Learning rate affects how often the model is updated
     # High values > 0.5 tend to lead to patchy output
     # Found that 0.1 - 0.3 is a good range
     masked = fgbg.apply(masked, learningRate=-1)
+    imshow_resized("background subtracted", masked)
 
     masked = remove_ground(masked, int(13/(2.26/SCALE_FACTOR)), 0.7)
 
@@ -372,9 +310,9 @@ def detect_objects(frame, fgbg, detector):
     # Invert frame such that black pixels are foreground
     masked = cv2.bitwise_not(masked)
 
-    # keypoints = []
+    keypoints = []
     # Blob detection
-    keypoints = detector.detect(masked)
+    # keypoints = detector.detect(masked)
 
     n_keypoints = len(keypoints)
     centroids = np.zeros((n_keypoints, 2))
