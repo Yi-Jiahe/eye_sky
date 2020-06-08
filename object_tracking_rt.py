@@ -2,12 +2,12 @@ import cv2
 import math
 import numpy as np
 from camera_stabilizer import stabilize_frame
+from camera_stabilizer import Camera
 from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
 from automatic_brightness import threshold_rgb
-
 import time
 
 
@@ -43,9 +43,8 @@ def remove_ground(im_in, dilation_iterations, background_contour_circularity):
 
     # This bit is used to find a suitable level of dilation to remove background objects
     # while keeping objects to be detected
-    im_debug = cv2.cvtColor(dilated.copy(), cv2.COLOR_GRAY2BGR)
+    im_debug = cv2.cvtColor(im_in.copy(), cv2.COLOR_GRAY2BGR)
     cv2.drawContours(im_debug, background_contours, -1, (0, 255, 0), 3)
-    # imshow_resized('original', im_in)
     imshow_resized('to_be_removed', im_debug)
 
     im_out = im_in.copy()
@@ -55,24 +54,39 @@ def remove_ground(im_in, dilation_iterations, background_contour_circularity):
 
 
 def imshow_resized(window_name, img):
-    aspect_ratio = img.shape[0]/img.shape[1]
+    aspect_ratio = img.shape[1]/img.shape[0]
 
-    window_size = (int(600), int(600*aspect_ratio))
+    window_size = (int(600), int(600/aspect_ratio))
     img = cv2.resize(img, window_size, interpolation=cv2.INTER_CUBIC)
     cv2.imshow(window_name, img)
+
+
+def downsample_image(img):
+    aspect_ratio = img.shape[1]/img.shape[0]
+    img_size = (int(1920), int(1920/aspect_ratio))
+    img = cv2.resize(img, img_size, interpolation=cv2.INTER_CUBIC)
+
+    return img
 
 
 def track_objects_realtime():
     print('Start Video Capture')
 
-    cap = cv2.VideoCapture("tiny_drones.mp4")
+    cap = cv2.VideoCapture("High_res.mp4")
 
     global FPS, FRAME_WIDTH, FRAME_HEIGHT, SCALE_FACTOR
     FPS = int(cap.get(cv2.CAP_PROP_FPS))
     FRAME_WIDTH = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     FRAME_HEIGHT = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     SCALE_FACTOR = math.sqrt(FRAME_WIDTH**2 + FRAME_HEIGHT**2)/math.sqrt(848**2 + 480**2)
-    SCALE_FACTOR = 2.26
+    aspect_ratio = FRAME_WIDTH/FRAME_HEIGHT
+
+    downsample = False
+    if FRAME_WIDTH*FRAME_HEIGHT > 1920*1080:
+        downsample = True
+        FRAME_WIDTH = 1920
+        FRAME_HEIGHT = int(1920/aspect_ratio)
+        SCALE_FACTOR = math.sqrt(FRAME_WIDTH**2 + FRAME_HEIGHT**2)/math.sqrt(848**2 + 480**2)
 
     # recording = cv2.VideoWriter('recording.mp4', cv2.VideoWriter_fourcc(*'h264'),
     #                             FPS, (FRAME_WIDTH, FRAME_HEIGHT))
@@ -80,15 +94,15 @@ def track_objects_realtime():
     out_combined = cv2.VideoWriter('out_real-time.mp4', cv2.VideoWriter_fourcc(*'h264'),
                                    FPS, (FRAME_WIDTH, FRAME_HEIGHT*2))
 
+    camera = Camera((FRAME_WIDTH, FRAME_HEIGHT))
     fgbg, detector = setup_system_objects()
 
     next_id = 0
-
     tracks = []
 
-    fps_log = []
     frame_count = 0
 
+    fps_log = []
     frame_start = time.time()
 
     origin = [0, 0]
@@ -106,6 +120,10 @@ def track_objects_realtime():
         frame_start = time.time()
 
         if ret:
+            if downsample:
+                frame = downsample_image(frame)
+            frame, mask = camera.undistort(frame)
+
             if frame_count == 0:
                 frame_before = frame
             elif frame_count >= 1:
@@ -125,7 +143,7 @@ def track_objects_realtime():
             prediction_time = time.time()
 
             assignments, unassigned_tracks, unassigned_detections\
-                = detection_to_track_assignment(tracks, centroids, 20)
+                = detection_to_track_assignment(tracks, centroids, 10*SCALE_FACTOR)
             assignment_time = time.time()
 
             update_assigned_tracks(assignments, tracks, centroids, sizes)
@@ -137,6 +155,8 @@ def track_objects_realtime():
             return_frame = frame.copy()
             masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
             good_tracks = filter_tracks(frame, masked, tracks, frame_count, origin)
+
+            other_track_stuff = time.time()
 
             # recording.write(return_frame)
 
@@ -154,11 +174,13 @@ def track_objects_realtime():
                   f"Camera stabilization took {(calibration_time - frame_start)*1000}ms.\n"
                   f"Object detection took {(detection_time - calibration_time)*1000}ms.\n"
                   f"Prediction took {(prediction_time - detection_time)*1000}ms.\n"
-                  f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n")
+                  f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n"
+                  f"Other track stuff took {(other_track_stuff - assignment_time)*1000}ms.\n"
+                  f"Writing to file took {(display_time - other_track_stuff)*1000}ms.\n\n")
 
             frame_count += 1
 
-            yield good_tracks, origin, frame_count, return_frame
+            yield good_tracks, origin, frame_count, return_frame, frame_start
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break

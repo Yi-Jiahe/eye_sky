@@ -38,6 +38,9 @@ def plot_tracks_realtime():
     get_results_p.start()
     plot_results_p.start()
 
+    get_results_p.join()
+    plot_results_p.join()
+
 
 def get_results(q):
     generator = track_objects_realtime()
@@ -72,13 +75,15 @@ def plot_results(q):
                                (1920, 1080))
 
     new_data = False
+    last_update = time.time()
 
     while True:
         while not q.empty():
             new_data = True
 
             item = q.get()
-            tracks, origin, frame_no, frame = item[0], item[1], item[2], item[3]
+            tracks, origin, frame_no, frame, frame_start = item
+
             for track in tracks:
                 track_id = track[0]
                 if track_id not in track_ids:  # First occurrence of the track
@@ -87,6 +92,8 @@ def plot_results(q):
 
                 track_plot = track_plots[track_ids.index(track_id)]
                 track_plot.update(track[3], frame_no)
+
+            last_update = time.time()
 
         if new_data:
             for track_plot in track_plots:
@@ -104,6 +111,11 @@ def plot_results(q):
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+
+        if (time.time() - last_update) > 5 and not new_data:
+            print("Timeout: Terminating plot")
+            break
+
     plot_out.release()
     cv2.destroyAllWindows()
 
