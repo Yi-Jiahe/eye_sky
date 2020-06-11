@@ -74,8 +74,9 @@ class Camera:
         mask = cv2.cvtColor(frame_undistorted, cv2.COLOR_BGR2GRAY)
         contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(mask, contours, -1, 255, -1)
+        # Erode the mask a bit to make sure we get rid of the dark border
         mask = cv2.erode(mask, np.ones((3, 3), np.uint8), iterations=3)
-
+        # Turn the imageless background to white
         frame_undistorted_white_borders = cv2.bitwise_or(frame_undistorted,
                                                           cv2.cvtColor(cv2.bitwise_not(mask), cv2.COLOR_GRAY2BGR))
 
@@ -131,6 +132,7 @@ def find_global_size(filename):
 
     global_height, global_width = frame_height, frame_width
     origin = [0, 0]
+    a = 0
     top_left, bottom_right = [0, 0], [frame_width, frame_height]
 
     camera = Camera([frame_width, frame_height])
@@ -145,11 +147,11 @@ def find_global_size(filename):
         transformations.append([])
 
         if ret:
-            imshow_resized('original', frame)
+            # imshow_resized('original', frame)
 
             frame, mask = camera.undistort(frame)
 
-            imshow_resized('corrected', frame)
+            # imshow_resized('corrected', frame)
             if frame_count == 0:
                 frame_before = frame
             elif frame_count >= 1:
@@ -171,14 +173,21 @@ def find_global_size(filename):
                 # where theta is rotation, s is scaling and tx,ty are translation
                 m = cv2.estimateAffinePartial2D(image_points1, image_points2)[0]
 
-                transformations[-1] = m
-
                 # Extract translation
                 # Camera frame moving left and up is positive
                 dx = m[0, 2]
                 dy = m[1, 2]
                 # Extract rotation angle
                 da = np.arctan2(m[1, 0], m[0, 0])
+                a += math.degrees(da)
+                a %= 360
+                print(f"rotation: {a}")
+
+                rows, columns = image1.shape
+
+                rot_mat = cv2.getRotationMatrix2D((columns / 2, rows / 2), a, 1)
+
+                transformations[-1] = (m, rot_mat)
 
                 top_left[0] -= int(dx)
                 bottom_right[0] -= int(dx)
@@ -189,7 +198,6 @@ def find_global_size(filename):
                     print(f"Original Width {global_width}")
                     global_width += int(math.fabs(dx))
                     print(f"Change: {int(math.fabs(dx))}, New width: {global_width}")
-                    print(global_width)
                     origin[0] += int(math.fabs(dx))
                     top_left[0] = 0
                     bottom_right[0] -= int(math.fabs(dx))
@@ -209,9 +217,10 @@ def find_global_size(filename):
                 else:
                     pass
 
-                rows, columns = image1.shape
                 # Note: warp affine rotates about top left
+                cv2.imshow('original', frame)
                 frame_stabilized = cv2.warpAffine(frame, m, (columns, rows))
+                cv2.imshow('frame', frame)
 
                 frame_before = frame
                 frame = frame_stabilized
@@ -255,7 +264,8 @@ def produce_stabilized_video(filename, global_height, global_width, origin, tran
             if frame_count == 0:
                 pass
             elif frame_count >= 1:
-                m = transformations[frame_count]
+                m, rot_mat = transformations[frame_count]
+
 
                 # Extract translation
                 dx = m[0, 2]
@@ -266,6 +276,7 @@ def produce_stabilized_video(filename, global_height, global_width, origin, tran
 
                 rows, columns, _ = frame.shape
                 frame = cv2.warpAffine(frame, m, (columns, rows))
+                frame = cv2.warpAffine(frame, rot_mat, (columns, rows))
 
             ROI = global_frame[origin[1]:origin[1]+frame_height, origin[0]:origin[0]+frame_width]
 
@@ -438,8 +449,8 @@ def create_mask_from_undistort_test(filename):
 if __name__ == '__main__':
     # stabilize_frame_standalone('panning_video.mp4')
 
-    # filename, global_height, global_width, ORIGIN, transformations = find_global_size('tilt.mp4')
-    # print(f"Height:{global_height}, width: {global_width}")
-    # produce_stabilized_video(filename, global_height, global_width, ORIGIN, transformations)
+    filename, global_height, global_width, ORIGIN, transformations = find_global_size('rotation.mp4')
+    print(f"Height:{global_height}, width: {global_width}")
+    produce_stabilized_video(filename, global_height, global_width, ORIGIN, transformations)
 
-    create_mask_from_undistort_test('shaky_borders.mp4')
+    # create_mask_from_undistort_test('shaky_borders.mp4')

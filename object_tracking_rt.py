@@ -33,6 +33,8 @@ def remove_ground(im_in, dilation_iterations, background_contour_circularity, fr
     # Number of iterations determines how close objects need to be to be considered background
     dilated = cv2.dilate(im_in, kernel_dilation, iterations=dilation_iterations)
 
+    imshow_resized('dilated', dilated)
+
     contours, hierarchy = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     background_contours = []

@@ -159,4 +159,4 @@ def scalar_to_rgb(scalar_value, max_value):
 
 
 if __name__ == "__main__":
-    plot_tracks_realtime('shaky_borders.mp4')
+    plot_tracks_realtime('overlapping.mp4')
