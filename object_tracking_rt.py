@@ -7,8 +7,9 @@ from filterpy.kalman import KalmanFilter
 from filterpy.common import Q_discrete_white_noise
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
-from automatic_brightness import threshold_rgb
+from automatic_brightness import average_brightness
 import time
+import queue
 
 
 class Track:
@@ -27,7 +28,7 @@ class Track:
 # Identify background objects by their shape (non-circular)
 # Creates a copy of the input image which has the background contour filled in
 # Returns the filled image which has the background elements filled in
-def remove_ground(im_in, dilation_iterations, background_contour_circularity):
+def remove_ground(im_in, dilation_iterations, background_contour_circularity, frame):
     kernel_dilation = np.ones((5, 5), np.uint8)
     # Number of iterations determines how close objects need to be to be considered background
     dilated = cv2.dilate(im_in, kernel_dilation, iterations=dilation_iterations)
@@ -43,7 +44,8 @@ def remove_ground(im_in, dilation_iterations, background_contour_circularity):
 
     # This bit is used to find a suitable level of dilation to remove background objects
     # while keeping objects to be detected
-    im_debug = cv2.cvtColor(im_in.copy(), cv2.COLOR_GRAY2BGR)
+    # im_debug = cv2.cvtColor(im_in.copy(), cv2.COLOR_GRAY2BGR)
+    im_debug = frame.copy()
     cv2.drawContours(im_debug, background_contours, -1, (0, 255, 0), 3)
     imshow_resized('to_be_removed', im_debug)
 
@@ -69,10 +71,10 @@ def downsample_image(img):
     return img
 
 
-def track_objects_realtime():
+def track_objects_realtime(filename):
     print('Start Video Capture')
 
-    cap = cv2.VideoCapture("High_res.mp4")
+    cap = cv2.VideoCapture(filename)
 
     global FPS, FRAME_WIDTH, FRAME_HEIGHT, SCALE_FACTOR
     FPS = int(cap.get(cv2.CAP_PROP_FPS))
@@ -108,12 +110,14 @@ def track_objects_realtime():
     origin = [0, 0]
 
     while cap.isOpened():
-        frame_end = time.time()
-        frame_time = frame_end - frame_start
-        if frame_time > 0.001:
-            fps_log.append(frame_time)
-        # if len(fps_log) > 5:
-        #     FPS = 1/(sum(fps_log[-5:])/5)
+        if filename == 0:
+            frame_end = time.time()
+            frame_time = frame_end - frame_start
+            if frame_time > 0.001:
+                fps_log.append(frame_time)
+                if len(fps_log)>5:
+                    FPS = 1/(sum(fps_log)/len(fps_log))
+                    fps_log.pop(0)
 
         ret, frame = cap.read()
 
@@ -136,7 +140,7 @@ def track_objects_realtime():
                 frame = stabilized_frame
             calibration_time = time.time()
 
-            centroids, sizes, masked = detect_objects(frame, fgbg, detector, origin)
+            centroids, sizes, masked = detect_objects(frame, mask, fgbg, detector, origin)
             detection_time = time.time()
 
             predict_new_locations_of_tracks(tracks)
@@ -227,14 +231,14 @@ def setup_system_objects():
 #        5) Inversion to make the foreground black for the blob detector to identify foreground objects
 # Perform the blob detection on the masked image
 # Return detected blob centroids as well as size
-def detect_objects(frame, fgbg, detector, origin):
+def detect_objects(frame, mask, fgbg, detector, origin):
     # Adjust contrast and brightness of image to make foreground stand out more
     # alpha used to adjust contrast, where alpha < 1 reduces contrast and alpha > 1 increases it
     # beta used to increase brightness, scale of (-255 to 255) ? Needs confirmation
     # formula is im_out = alpha * im_in + beta
     # Therefore to change brightness before contrast, we need to do alpha = 1 first
     masked = cv2.convertScaleAbs(frame, alpha=1, beta=0)
-    masked = cv2.convertScaleAbs(masked, alpha=2, beta=128)
+    masked = cv2.convertScaleAbs(masked, alpha=1, beta=256-average_brightness(16, frame, mask)+15)
     # masked = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
 
     # masked = threshold_rgb(frame)
@@ -251,7 +255,7 @@ def detect_objects(frame, fgbg, detector, origin):
 
     imshow_resized("background subtracted", masked)
 
-    masked = remove_ground(masked, int(13/(2.26/SCALE_FACTOR)), 0.7)
+    masked = remove_ground(masked, int(13/(2.26/SCALE_FACTOR)), 0.7, frame)
 
     # Morphological Transforms
     # Close to remove black spots
@@ -487,10 +491,11 @@ def create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes):
 
 
 def filter_tracks(frame, masked, tracks, counter, origin):
+    # Minimum number of frames to remove noise seems to be somewhere in the range of 30
     # Actually, I feel having both might be redundant together with the deletion criteria
-    min_track_age = 1.0 * FPS    # seconds * FPS to give number of frames in seconds
+    min_track_age = max(1.0 * FPS, 30)    # seconds * FPS to give number of frames in seconds
     # This has to be less than or equal to the minimum age or it make the minimum age redundant
-    min_visible_count = 1.0 * FPS
+    min_visible_count = max(1.0 * FPS, 30)
 
     good_tracks = []
 

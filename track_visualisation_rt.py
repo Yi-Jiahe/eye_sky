@@ -29,11 +29,11 @@ class TrackPlot():
         self.lastSeen = frame_no
 
 
-def plot_tracks_realtime():
+def plot_tracks_realtime(filename=0):
     q = multiprocessing.Queue()
 
-    get_results_p = multiprocessing.Process(target=get_results, args=(q,))
-    plot_results_p = multiprocessing.Process(target=plot_results, args=(q,))
+    get_results_p = multiprocessing.Process(target=get_results, args=(q, filename))
+    plot_results_p = multiprocessing.Process(target=plot_results, args=(q, filename))
 
     get_results_p.start()
     plot_results_p.start()
@@ -42,13 +42,13 @@ def plot_tracks_realtime():
     plot_results_p.join()
 
 
-def get_results(q):
-    generator = track_objects_realtime()
+def get_results(q, filename):
+    generator = track_objects_realtime(filename)
     for item in generator:
         q.put(item)
 
 
-def plot_results(q):
+def plot_results(q, filename):
     origin = [0, 0]
 
     track_ids = []
@@ -64,15 +64,11 @@ def plot_results(q):
     font = cv2.FONT_HERSHEY_SIMPLEX
     font_scale = 0.5
 
-    # cap = cv2.VideoCapture(0)
-    # plot_out = cv2.VideoWriter('video_plot.mp4', cv2.VideoWriter_fourcc(*'h264'),
-    #                            int(cap.get(cv2.CAP_PROP_FPS)),
-    #                            (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
-    # cap.release()
-
+    cap = cv2.VideoCapture(filename)
     plot_out = cv2.VideoWriter('video_plot.mp4', cv2.VideoWriter_fourcc(*'h264'),
-                               30,
-                               (1920, 1080))
+                               int(cap.get(cv2.CAP_PROP_FPS)),
+                               (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))))
+    cap.release()
 
     new_data = False
     last_update = time.time()
@@ -163,4 +159,4 @@ def scalar_to_rgb(scalar_value, max_value):
 
 
 if __name__ == "__main__":
-    plot_tracks_realtime()
+    plot_tracks_realtime('shaky_borders.mp4')

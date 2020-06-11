@@ -96,15 +96,17 @@ def display_histograms(filename):
         if ret:
             frame, mask = camera.undistort(frame)
 
+
+
             imshow_resized('frame', frame)
 
             original.plot(frame, mask)
 
-            masked = cv2.convertScaleAbs(frame, alpha=2, beta=128)
+            masked = cv2.convertScaleAbs(frame, alpha=1, beta=256-average_brightness(bins, frame, mask))
 
             # masked = equalize_hist_rgb(frame)
 
-            masked = threshold_rgb(frame)
+            # masked = threshold_rgb(frame)
 
             imshow_resized('adjusted', masked)
             # cv2.imshow("adj", masked)
@@ -155,6 +157,17 @@ def equalize_hist_rgb(frame):
     b_out = cv2.equalizeHist(b)
 
     return cv2.merge((b_out, g_out, r_out))
+
+
+def average_brightness(bins, frame, mask):
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    histogram_gray = cv2.calcHist([frame], [0], mask, [bins], [0, 256])
+    weighted_sum = 0
+
+    for bin, pixels in enumerate(histogram_gray):
+        weighted_sum += bin * pixels
+
+    return int((weighted_sum/sum(histogram_gray))*(256/bins))
 
 
 if __name__ == '__main__':

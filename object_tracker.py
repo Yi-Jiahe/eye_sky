@@ -93,12 +93,12 @@ def remove_ground(im_in, dilation_iterations, background_contour_circularity):
         if circularity <= background_contour_circularity:
             background_contours.append(contour)
 
-    # # This bit is used to find a suitable level of dilation to remove background objects
-    # # while keeping objects to be detected
-    # im_debug = cv2.cvtColor(dilated.copy(), cv2.COLOR_GRAY2BGR)
-    # cv2.drawContours(im_debug, background_contours, -1, (0, 255, 0), 3)
-    # imshow_resized('original', im_in)
-    # imshow_resized('to_be_removed', im_debug)
+    # This bit is used to find a suitable level of dilation to remove background objects
+    # while keeping objects to be detected
+    im_debug = cv2.cvtColor(dilated.copy(), cv2.COLOR_GRAY2BGR)
+    cv2.drawContours(im_debug, background_contours, -1, (0, 255, 0), 3)
+    imshow_resized('original', im_in)
+    imshow_resized('to_be_removed', im_debug)
 
     im_out = im_in.copy()
     cv2.drawContours(im_out, background_contours, -1, 0, -1)
@@ -124,8 +124,6 @@ def motion_based_multi_object_tracking(filename):
     # to the video used to test the parameters, which in this case is 848x480
     SCALE_FACTOR = math.sqrt(FRAME_WIDTH**2 + FRAME_HEIGHT**2)/math.sqrt(848**2 + 480**2)
     print(f"Scaling Factor: {SCALE_FACTOR}")
-
-    SCALE_FACTOR = 2.26
 
     out_original = cv2.VideoWriter('out_original.mp4', cv2.VideoWriter_fourcc(*'h264'),
                                    FPS, (FRAME_WIDTH, FRAME_HEIGHT))
@@ -282,7 +280,7 @@ def detect_objects(frame, fgbg, detector):
     # formula is im_out = alpha * im_in + beta
     # Therefore to change brightness before contrast, we need to do alpha = 1 first
     masked = cv2.convertScaleAbs(frame, alpha=1, beta=0)
-    masked = cv2.convertScaleAbs(masked, alpha=2, beta=128)
+    masked = cv2.convertScaleAbs(masked, alpha=1, beta=128)
     # masked = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
 
     # masked = threshold_rgb(frame)
@@ -310,9 +308,9 @@ def detect_objects(frame, fgbg, detector):
     # Invert frame such that black pixels are foreground
     masked = cv2.bitwise_not(masked)
 
-    keypoints = []
+    # keypoints = []
     # Blob detection
-    # keypoints = detector.detect(masked)
+    keypoints = detector.detect(masked)
 
     n_keypoints = len(keypoints)
     centroids = np.zeros((n_keypoints, 2))
