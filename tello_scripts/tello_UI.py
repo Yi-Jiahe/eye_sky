@@ -29,14 +29,24 @@ class TelloUI:
         self.root.bind('<KeyPress-Left>', self.on_keypress_left)
         self.root.bind('<KeyPress-Right>', self.on_keypress_right)
 
+        self.distance_bar = tk.Scale(self.root, from_=0.02, to=5, tickinterval=0.01, digits=3, label='Distance(m)',
+                                  resolution=0.01)
+        self.distance_bar.set(0.2)
+        self.distance_bar.pack(side="left")
+
+        self.degree_bar = tk.Scale(self.root, from_=1, to=360, tickinterval=10, label='Degree')
+        self.degree_bar.set(30)
+        self.degree_bar.pack(side="right")
+
+        self.tello.streamon()
         # start a thread that constantly pools the video sensor for
         # the most recently read frame
         self.stopEvent = threading.Event()
         self.thread = threading.Thread(target=self.videoLoop, args=())
         self.thread.start()
 
-        # # the sending_command will send command to tello every 5 seconds
-        # self.sending_command_thread = threading.Thread(target = self._sendingCommand)
+        # the sending_command will send command to tello every 5 seconds
+        self.sending_command_thread = threading.Thread(target = self._sendingCommand)
 
         # set a callback to handle when the window is closed
         self.root.wm_title("TELLO Controller")
@@ -61,7 +71,6 @@ class TelloUI:
 
                 self._updateGUIImage(image)
 
-            pass
         except RuntimeError:
             print("Oh no, I personally don't know whats wrong")
 
@@ -92,28 +101,28 @@ class TelloUI:
         return self.tello.land()
 
     def telloMoveForward(self, distance):
-        return self.tello.move_forward(distance)
+        return self.tello.forward(distance)
 
     def telloMoveBackward(self, distance):
-        return self.tello.move_backward(distance)
+        return self.tello.back(distance)
 
     def telloMoveLeft(self, distance):
-        return self.tello.move_left(distance)
+        return self.tello.left(distance)
 
     def telloMoveRight(self, distance):
-        return self.tello.move_right(distance)
+        return self.tello.right(distance)
 
     def telloUp(self, dist):
-        return self.tello.move_up(dist)
+        return self.tello.up(dist)
 
     def telloDown(self, dist):
-        return self.tello.move_down(dist)
+        return self.tello.down(dist)
 
     def telloCW(self, degree):
-        return self.tello.rotate_cw(degree)
+        return self.tello.cw(degree)
 
     def telloCCW(self, degree):
-        return self.tello.rotate_ccw(degree)
+        return self.tello.ccw(degree)
 
     def updateDistancebar(self):
         self.distance = self.distance_bar.get()
