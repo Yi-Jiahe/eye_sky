@@ -131,9 +131,9 @@ def find_global_size(filename):
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 
     global_height, global_width = frame_height, frame_width
-    origin = [0, 0]
+    origin = np.array([0, 0])
     a = 0
-    top_left, bottom_right = [0, 0], [frame_width, frame_height]
+    top_left, bottom_right = np.array([0, 0]), np.array([frame_width, frame_height])
 
     camera = Camera([frame_width, frame_height])
 
@@ -158,7 +158,8 @@ def find_global_size(filename):
                 image1 = cv2.cvtColor(frame_before, cv2.COLOR_BGR2GRAY)
                 image2 = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-                image_points1 = cv2.goodFeaturesToTrack(image1, maxCorners=300, qualityLevel=0.01, minDistance=10)
+                image_points1 = cv2.goodFeaturesToTrack(image1, maxCorners=300, qualityLevel=0.01, minDistance=10,
+                                                        mask=mask)
 
                 image_points2, status, err = cv2.calcOpticalFlowPyrLK(image1, image2, image_points1, None)
 
@@ -175,13 +176,13 @@ def find_global_size(filename):
 
                 # Extract translation
                 # Camera frame moving left and up is positive
-                dx = m[0, 2]
-                dy = m[1, 2]
+                dx = int(m[0, 2])
+                dy = int(m[1, 2])
                 # Extract rotation angle
                 da = np.arctan2(m[1, 0], m[0, 0])
                 a += math.degrees(da)
                 a %= 360
-                print(f"rotation: {a}")
+                # print(f"rotation: {a}")
 
                 rows, columns = image1.shape
 
@@ -189,38 +190,46 @@ def find_global_size(filename):
 
                 transformations[-1] = (m, rot_mat)
 
-                top_left[0] -= int(dx)
-                bottom_right[0] -= int(dx)
-                top_left[1] -= int(dy)
-                bottom_right[1] -= int(dy)
+                # print(f"dx:{dx}, dy: {dy}")
 
+                top_left[0] -= dx
+                bottom_right[0] -= dx
+                top_left[1] -= dy
+                bottom_right[1] -= dy
+
+                # rounding must come before fabs to prevent rounding up vs rounding down if performed on a negative
+                # float vs a positive float
+                # I think
+                dx_abs = abs(dx)
+                dy_abs = abs(dy)
                 if top_left[0] < 0:
-                    print(f"Original Width {global_width}")
-                    global_width += int(math.fabs(dx))
-                    print(f"Change: {int(math.fabs(dx))}, New width: {global_width}")
-                    origin[0] += int(math.fabs(dx))
+                    global_width += dx_abs
+                    origin[0] += dx_abs
+                    bottom_right[0] -= top_left[0]
                     top_left[0] = 0
-                    bottom_right[0] -= int(math.fabs(dx))
                 elif bottom_right[0] > global_width:
-                    print(f"Original Width {global_width}")
-                    global_width += int(math.fabs(dx))
-                    print(f"Change: {int(math.fabs(dx))}, New width: {global_width}")
+                    global_width += dx_abs
                 else:
                     pass
                 if top_left[1] < 0:
-                    global_height += int(math.fabs(dy))
-                    origin[1] += int(math.fabs(dy))
+                    global_height += dy_abs
+                    origin[1] += dy_abs
+                    bottom_right[1] -= top_left[1]
                     top_left[1] = 0
-                    bottom_right[1] -= int(math.fabs(dy))
                 elif bottom_right[1] > global_height:
-                    global_height += int(math.fabs(dy))
+                    global_height += dy_abs
                 else:
                     pass
 
+                if not ((bottom_right - top_left) == frame.shape[:2][::-1]).all():
+
+                    print(f"Top left: {top_left}, Bottom right: {bottom_right}")
+                    print(f"Error: frame shape is {(bottom_right - top_left)}")
+
                 # Note: warp affine rotates about top left
-                cv2.imshow('original', frame)
+                # cv2.imshow('original', frame)
                 frame_stabilized = cv2.warpAffine(frame, m, (columns, rows))
-                cv2.imshow('frame', frame)
+                # cv2.imshow('frame', frame)
 
                 frame_before = frame
                 frame = frame_stabilized
@@ -266,13 +275,12 @@ def produce_stabilized_video(filename, global_height, global_width, origin, tran
             elif frame_count >= 1:
                 m, rot_mat = transformations[frame_count]
 
-
                 # Extract translation
-                dx = m[0, 2]
-                dy = m[1, 2]
+                dx = int(m[0, 2])
+                dy = int(m[1, 2])
 
-                origin[0] -= int(dx)
-                origin[1] -= int(dy)
+                origin[0] -= dx
+                origin[1] -= dy
 
                 rows, columns, _ = frame.shape
                 frame = cv2.warpAffine(frame, m, (columns, rows))
@@ -449,7 +457,7 @@ def create_mask_from_undistort_test(filename):
 if __name__ == '__main__':
     # stabilize_frame_standalone('panning_video.mp4')
 
-    filename, global_height, global_width, ORIGIN, transformations = find_global_size('rotation.mp4')
+    filename, global_height, global_width, ORIGIN, transformations = find_global_size('optical_flow_cloud.mp4')
     print(f"Height:{global_height}, width: {global_width}")
     produce_stabilized_video(filename, global_height, global_width, ORIGIN, transformations)
 
