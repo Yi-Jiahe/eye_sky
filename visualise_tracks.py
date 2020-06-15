@@ -138,5 +138,5 @@ def scalar_to_hex(scalar_value, max_value):
 
 
 if __name__ == "__main__":
-    plot_tracks(motion_based_multi_object_tracking('stabilized.mp4'))
+    plot_tracks(motion_based_multi_object_tracking('drone_on_background/Samsung_v1.mp4'))
     # plot_tracks_realtime()

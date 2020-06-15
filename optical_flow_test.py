@@ -76,4 +76,4 @@ def show_optical_flow(filename):
     cv2.destroyAllWindows()
 
 
-show_optical_flow('optical_flow_cloud.mp4')
+show_optical_flow('panning_video.mp4')

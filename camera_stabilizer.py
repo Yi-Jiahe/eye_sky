@@ -74,13 +74,13 @@ class Camera:
         mask = cv2.cvtColor(frame_undistorted, cv2.COLOR_BGR2GRAY)
         contours, hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(mask, contours, -1, 255, -1)
-        # Erode the mask a bit to make sure we get rid of the dark border
-        mask = cv2.erode(mask, np.ones((3, 3), np.uint8), iterations=3)
-        # Turn the imageless background to white
-        frame_undistorted_white_borders = cv2.bitwise_or(frame_undistorted,
-                                                          cv2.cvtColor(cv2.bitwise_not(mask), cv2.COLOR_GRAY2BGR))
+        # # Erode the mask a bit to make sure we get rid of the dark border
+        # mask = cv2.erode(mask, np.ones((3, 3), np.uint8), iterations=3)
+        # # Turn the imageless background to white
+        # frame_undistorted_white_borders = cv2.bitwise_or(frame_undistorted,
+        #                                                   cv2.cvtColor(cv2.bitwise_not(mask), cv2.COLOR_GRAY2BGR))
 
-        return frame_undistorted_white_borders, mask
+        return frame_undistorted, mask
 
 
 def imshow_resized(window_name, img):
@@ -457,7 +457,7 @@ def create_mask_from_undistort_test(filename):
 if __name__ == '__main__':
     # stabilize_frame_standalone('panning_video.mp4')
 
-    filename, global_height, global_width, ORIGIN, transformations = find_global_size('optical_flow_cloud.mp4')
+    filename, global_height, global_width, ORIGIN, transformations = find_global_size('tiny_drones.mp4')
     print(f"Height:{global_height}, width: {global_width}")
     produce_stabilized_video(filename, global_height, global_width, ORIGIN, transformations)
 

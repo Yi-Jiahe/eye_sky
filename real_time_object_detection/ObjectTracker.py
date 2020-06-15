@@ -12,7 +12,7 @@ from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
 
 
-class objectTracker:
+class ObjectTracker:
     def __init__(self, filename=0):
         # Set-up video input stream
         self.filename=filename

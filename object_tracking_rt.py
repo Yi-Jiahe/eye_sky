@@ -74,7 +74,11 @@ def downsample_image(img):
 
 
 def track_objects_realtime(filename):
-    print('Start Video Capture')
+    if filename == 0:
+        realtime = True
+        print('Start Video Capture')
+    else:
+        realtime = False
 
     cap = cv2.VideoCapture(filename)
 
@@ -112,7 +116,7 @@ def track_objects_realtime(filename):
     origin = [0, 0]
 
     while cap.isOpened():
-        if filename == 0:
+        if realtime:
             frame_end = time.time()
             frame_time = frame_end - frame_start
             if frame_time > 0.001:
@@ -126,6 +130,7 @@ def track_objects_realtime(filename):
         frame_start = time.time()
 
         if ret:
+            print(frame_count)
             if downsample:
                 frame = downsample_image(frame)
             frame, mask = camera.undistort(frame)
@@ -135,8 +140,8 @@ def track_objects_realtime(filename):
             elif frame_count >= 1:
                 # Frame stabilization
                 stabilized_frame, dx, dy = stabilize_frame(frame_before, frame)
-                origin[0] += int(dx)
-                origin[1] += int(dy)
+                origin[0] -= int(dx)
+                origin[1] -= int(dy)
 
                 frame_before = frame
                 frame = stabilized_frame
@@ -186,6 +191,9 @@ def track_objects_realtime(filename):
 
             frame_count += 1
 
+            if not realtime:
+                frame_start = False
+
             yield good_tracks, origin, frame_count, return_frame, frame_start
 
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -204,6 +212,8 @@ def track_objects_realtime(filename):
 # background subtractor object and blob detector objects for object detection
 # and VideoWriters for output videos
 def setup_system_objects():
+    # Background subtractor works by subtracting the history from the current frame.
+    # Further more this model already incldues guassian blur and morphological transformations
     # varThreshold affects the spottiness of the image. The lower it is, the more smaller spots.
     # The larger it is, these spots will combine into large foreground areas
     fgbg = cv2.createBackgroundSubtractorMOG2(history=int(10*FPS), varThreshold=64 * SCALE_FACTOR,
@@ -241,11 +251,10 @@ def detect_objects(frame, mask, fgbg, detector, origin):
     # Therefore to change brightness before contrast, we need to do alpha = 1 first
     masked = cv2.convertScaleAbs(frame, alpha=1, beta=0)
     masked = cv2.convertScaleAbs(masked, alpha=1, beta=256-average_brightness(16, frame, mask)+15)
+    # masked = cv2.convertScaleAbs(masked, alpha=2, beta=128)
     # masked = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
 
     # masked = threshold_rgb(frame)
-
-    # masked = cv2.GaussianBlur(masked, (5, 5), 0)
 
     imshow_resized("pre-background subtraction", masked)
 
@@ -271,6 +280,9 @@ def detect_objects(frame, mask, fgbg, detector, origin):
     # Invert frame such that black pixels are foreground
     masked = cv2.bitwise_not(masked)
 
+    # Apply foreground mask (dilated) to the image and perform detection on that
+    # masked = cv2.bitwise_and(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), masked)
+
     # keypoints = []
     # Blob detection
     keypoints = detector.detect(masked)
@@ -280,7 +292,7 @@ def detect_objects(frame, mask, fgbg, detector, origin):
     sizes = np.zeros(n_keypoints)
     for i in range(n_keypoints):
         centroids[i] = keypoints[i].pt
-        centroids[i] -= origin
+        centroids[i] += origin
         sizes[i] = keypoints[i].size
 
     return centroids, sizes, masked
@@ -509,7 +521,7 @@ def filter_tracks(frame, masked, tracks, counter, origin):
 
                 good_tracks.append([track.id, track.age, size, (centroid[0], centroid[1])])
 
-                centroid = track.kalmanFilter.x[:2] + origin
+                centroid = track.kalmanFilter.x[:2] - origin
 
                 # Display filtered tracks
                 rect_top_left = (int(centroid[0] - size/2), int(centroid[1] - size/2))
