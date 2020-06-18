@@ -457,7 +457,7 @@ def create_mask_from_undistort_test(filename):
 if __name__ == '__main__':
     # stabilize_frame_standalone('panning_video.mp4')
 
-    filename, global_height, global_width, ORIGIN, transformations = find_global_size('tiny_drones.mp4')
+    filename, global_height, global_width, ORIGIN, transformations = find_global_size('bird_panning_left.mp4')
     print(f"Height:{global_height}, width: {global_width}")
     produce_stabilized_video(filename, global_height, global_width, ORIGIN, transformations)
 

@@ -1,6 +1,9 @@
 import cv2
 import math
 import numpy as np
+import time
+import queue
+
 from camera_stabilizer import stabilize_frame
 from camera_stabilizer import Camera
 from filterpy.kalman import KalmanFilter
@@ -8,8 +11,8 @@ from filterpy.common import Q_discrete_white_noise
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
 from automatic_brightness import average_brightness
-import time
-import queue
+
+from object_tracker import imopen
 
 
 class Track:
@@ -113,7 +116,7 @@ def track_objects_realtime(filename):
     fps_log = []
     frame_start = time.time()
 
-    origin = [0, 0]
+    origin = np.array([0, 0])
 
     while cap.isOpened():
         if realtime:
@@ -147,7 +150,9 @@ def track_objects_realtime(filename):
                 frame = stabilized_frame
             calibration_time = time.time()
 
-            centroids, sizes, masked = detect_objects(frame, mask, fgbg, detector, origin)
+            # centroids, sizes, masked = detect_objects(frame, mask, fgbg, detector, origin)
+            centroids, sizes, masked = detect_objects_large(frame, mask, fgbg, detector, origin)
+
             detection_time = time.time()
 
             predict_new_locations_of_tracks(tracks)
@@ -250,7 +255,8 @@ def detect_objects(frame, mask, fgbg, detector, origin):
     # formula is im_out = alpha * im_in + beta
     # Therefore to change brightness before contrast, we need to do alpha = 1 first
     masked = cv2.convertScaleAbs(frame, alpha=1, beta=0)
-    masked = cv2.convertScaleAbs(masked, alpha=1, beta=256-average_brightness(16, frame, mask)+15)
+    gain = 15
+    masked = cv2.convertScaleAbs(masked, alpha=1, beta=256-average_brightness(16, frame, mask)+gain)
     # masked = cv2.convertScaleAbs(masked, alpha=2, beta=128)
     # masked = cv2.cvtColor(masked, cv2.COLOR_BGR2GRAY)
 
@@ -277,11 +283,11 @@ def detect_objects(frame, mask, fgbg, detector, origin):
     kernel_dilation = np.ones((5, 5), np.uint8)
     masked = cv2.dilate(masked, kernel_dilation, iterations=2)
 
-    # Invert frame such that black pixels are foreground
-    masked = cv2.bitwise_not(masked)
-
     # Apply foreground mask (dilated) to the image and perform detection on that
     # masked = cv2.bitwise_and(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), masked)
+
+    # Invert frame such that black pixels are foreground
+    masked = cv2.bitwise_not(masked)
 
     # keypoints = []
     # Blob detection
@@ -294,6 +300,34 @@ def detect_objects(frame, mask, fgbg, detector, origin):
         centroids[i] = keypoints[i].pt
         centroids[i] += origin
         sizes[i] = keypoints[i].size
+
+    return centroids, sizes, masked
+
+
+def detect_objects_large(frame, mask, fgbg, detector, origin):
+    masked = cv2.convertScaleAbs(frame, alpha=1, beta=0)
+    gain = 15
+    masked = cv2.convertScaleAbs(masked, alpha=1, beta=256-average_brightness(16, frame, mask)+gain)
+
+    masked = fgbg.apply(masked, learningRate=-1)
+
+    kernel = np.ones((5, 5), np.uint8)
+    # Remove Noise
+    masked = cv2.morphologyEx(masked, cv2.MORPH_OPEN, kernel, iterations=int(1))
+
+    masked = cv2.dilate(masked, kernel, iterations=int(4*SCALE_FACTOR))
+
+    contours, hierarchy = cv2.findContours(masked, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    n_keypoints = len(contours)
+    centroids = np.zeros((n_keypoints, 2))
+    sizes = np.zeros(n_keypoints)
+    for i, contour in enumerate(contours):
+        M = cv2.moments(contour)
+        centroids[i] = [int(M['m10']/M['m00']), int(M['m01']/M['m00'])]
+        centroids[i] += origin
+        x, y, w, h = cv2.boundingRect(contour)
+        sizes[i] = max(w, h)
 
     return centroids, sizes, masked
 
@@ -505,11 +539,14 @@ def create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes):
 
 
 def filter_tracks(frame, masked, tracks, counter, origin):
-    # Minimum number of frames to remove noise seems to be somewhere in the range of 30
-    # Actually, I feel having both might be redundant together with the deletion criteria
-    min_track_age = max(1.0 * FPS, 30)    # seconds * FPS to give number of frames in seconds
-    # This has to be less than or equal to the minimum age or it make the minimum age redundant
-    min_visible_count = max(1.0 * FPS, 30)
+    # # Minimum number of frames to remove noise seems to be somewhere in the range of 30
+    # # Actually, I feel having both might be redundant together with the deletion criteria
+    # min_track_age = max(1.0 * FPS, 30)    # seconds * FPS to give number of frames in seconds
+    # # This has to be less than or equal to the minimum age or it make the minimum age redundant
+    # min_visible_count = max(1.0 * FPS, 30)
+
+    min_track_age = 0
+    min_visible_count = 0
 
     good_tracks = []
 

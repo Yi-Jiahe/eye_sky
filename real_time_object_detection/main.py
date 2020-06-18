@@ -1,6 +1,5 @@
 from real_time_object_detection.UI import UI
 
-
 def main():
     ui = UI()
 

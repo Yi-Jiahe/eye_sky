@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import time
 import multiprocessing
+import csv
 
 
 class TrackPlot():
@@ -19,10 +20,10 @@ class TrackPlot():
         self.lastSeen = 0
 
         self.Q = 0
-        self.turning_angle = np.array([])  # Radians
+        self.turning_angle = np.array([])  # Degrees
         self.curvature = np.array([])
         self.pace = np.array([])
-        self.track_feature_variable = 0
+        self.track_feature_variable = np.array([])
 
 
     def plot_track(self):
@@ -40,48 +41,59 @@ class TrackPlot():
 
         self.lastSeen = frame_no
 
-    def calculate_track_feature_angle(self):
+    def calculate_track_feature_variable(self, frameNo):
         # Check if there is enough data to calculate turning angle (at least 3 points)
-        if len(self.frameNos) >= 3:
+        # And that the data is still current
+        if len(self.frameNos) >= 3 and self.frameNos[-1] == frameNo:
             # Check if the last 3 frames are consecutive
             if self.frameNos[-2] == self.frameNos[-1] - 1 and self.frameNos[-3] == self.frameNos[-2] - 1:
-                # retrieve the x and y values of the last 3 points
+                # Retrieve the x and y values of the last 3 points and introduce t for readability
+                t = 2
                 x, y = self.xs[-3:], self.ys[-3:]
-                t = 2  # introduce t for readability
 
                 # Turning angle
-                heading_1 = np.abs(np.arctan((y[t]   - y[t-1]) / (x[t]   - x[t-1])))
-                heading_2 = np.abs(np.arctan((y[t-1] - y[t-2]) / (x[t-1] - x[t-2])))
+                xs = np.array([ x[t]-x[t-1], x[t-1]-x[t-2] ])
+                ys = np.array([ y[t]-y[t-1], y[t-1]-y[t-2] ])
 
-                # if the denominator is 0
-                heading_1 = 0 if np.isnan(heading_1) else heading_1
-                heading_2 = 0 if np.isnan(heading_2) else heading_2
+                # arctan2 returns the element-wise arc tangent, choosing the element correctly
+                # Special angles excluding infinities:
+                # y = +/- 0, x = +0, theta = +/- 0
+                # y = +/- 0, x = -0, theta = +/- pi
+                # whats a positive or negative 0?
+                heading = np.arctan2(ys, xs) * 180/np.pi
 
-                turning_angle = np.abs( heading_2 - heading_1 )
+                turning_angle = heading[1] - heading[0]
+
                 self.turning_angle = np.append(self.turning_angle, turning_angle)
-                # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ How to check for which quadrant it is in?
 
                 # Curvature
                 a = np.sqrt( (x[t]   - x[t-2])**2 + (y[t]   - y[t-2])**2 )
                 b = np.sqrt( (x[t-1] - x[t-2])**2 + (y[t-1] - y[t-2])**2 )
                 c = np.sqrt( (x[t]   - x[t-1])**2 + (y[t]   - y[t-1])**2 )
 
-                curvature = np.arccos( (a**2 - b**2 - c**2) / 2*b*c )
-                curvature = 0 if np.isnan(curvature) else curvature
+                if b == 0 or c == 0:
+                    curvature = 0
+                else:
+                    curvature = np.arccos( (a**2 - b**2 - c**2) / (2*b*c) )
+                    # For whatever reason, the arccos of 1.0000000000000002 is nan
+                    if np.isnan(curvature):
+                        curvature = 0
+
                 self.curvature = np.append(self.curvature, curvature)
 
                 # Pace
-                if self.times.size != 0:
+                # Check if the data was returned in real time
+                if self.times.size != 0:  # If so, dt is the difference in the time each consecutive frame was read
                     dt = self.times[-1] - self.times[-2]
                 else:
                     # assume 30 FPS
                     dt = 1/30
 
-                pace = c/dt
+                pace = c / dt
                 self.pace = np.append(self.pace, pace)
 
-                self.track_feature_variable = np.mean(self.turning_angle) * np.mean(self.curvature) * np.mean(self.pace)
-
+                track_feature_variable = np.mean(self.turning_angle) * np.mean(self.curvature) * np.mean(self.pace)
+                self.track_feature_variable = np.append(self.track_feature_variable, track_feature_variable)
 
 
 def plot_tracks_realtime(filename=0):
@@ -148,6 +160,9 @@ def plot_results(q, filename):
                 else:
                     track_plot.update(track[3], frame_no)
 
+                track_plot.calculate_track_feature_variable(frame_no)
+
+
             last_update = time.time()
 
         if new_data:
@@ -158,12 +173,13 @@ def plot_results(q, filename):
                     cv2.circle(frame, (track_plot.xs[idx]-origin[0], track_plot.ys[idx]-origin[1]),
                                3, colours[track_plot.frameNos[idx]-frame_no+plot_history-1][::-1], -1)
                 if len(idxs) != 0:
-                    cv2.putText(frame, str(track_plot.id), (track_plot.xs[idx]-origin[0], track_plot.ys[idx]-origin[1]),
+                    cv2.putText(frame, f"ID: {track_plot.id}",
+                                (track_plot.xs[idx]-origin[0], track_plot.ys[idx]-origin[1]+15),
                                 font, font_scale, (0, 0, 255), 1, cv2.LINE_AA)
-                    track_plot.calculate_track_feature_angle()
-                    cv2.putText(frame, str(track_plot.track_feature_variable),
-                                (track_plot.xs[idx]-origin[0], track_plot.ys[idx]-origin[1] + 5),
-                                font, font_scale, (0, 0, 255), 1, cv2.LINE_AA)
+                    if track_plot.track_feature_variable.size != 0:
+                        cv2.putText(frame, f"Xj: {np.mean(track_plot.track_feature_variable):.3f}",
+                                    (track_plot.xs[idx]-origin[0], track_plot.ys[idx]-origin[1] + 30),
+                                    font, font_scale, (0, 255, 0), 1, cv2.LINE_AA)
             plot_out.write(frame)
             imshow_resized("plot", frame)
             new_data = False
@@ -178,9 +194,60 @@ def plot_results(q, filename):
     plot_out.release()
     cv2.destroyAllWindows()
 
+    plot_track_feature_variable(track_plots)
+    export_data_as_csv(track_plots)
+
 
 def delete_track_plots():
     pass
+
+
+def plot_track_feature_variable(track_plots):
+    fig, ax = plt.subplots()
+
+    ax.set_yscale('log')
+
+    ax.set_xlabel('Frame Number')
+    ax.set_ylabel('Track Feature Variable Xj')
+
+
+    for track_plot in track_plots:
+        # Check that there's track feature variable data at all
+        if track_plot.track_feature_variable.size != 0:
+            ax.plot(track_plot.frameNos[2:], track_plot.track_feature_variable)
+            ax.text(track_plot.frameNos[-1], track_plot.track_feature_variable[-1],
+                    f"{track_plot.id}")
+
+    plt.show()
+
+
+def export_data_as_csv(track_plots):
+    data = []
+
+    max_frame = 0
+
+    for track_plot in track_plots:
+        # Check that there's track feature variable data at all
+        if track_plot.track_feature_variable.size != 0:
+
+            # Check if the data has enough rows to accommodate the data
+            if track_plot.frameNos[-1] > max_frame:
+                # Add the required number of extra rows
+                data.extend([[i] for i in range(max_frame, track_plot.frameNos[-1]+1)])
+                max_frame = track_plot.frameNos[-1]
+
+            for idx, frame in enumerate(track_plot.frameNos):
+                # Track feature variable is only calculated on the 3rd frame
+                if idx >= 2:
+                    data[frame-1].extend([track_plot.id,
+                                          track_plot.xs[idx],
+                                          track_plot.ys[idx],
+                                          track_plot.track_feature_variable[idx-2]])
+
+    with open('data_out.csv', 'w') as csvfile:
+        writer = csv.writer(csvfile)
+        for line in data:
+            writer.writerow(line)
 
 
 def rgb_to_hex(r,g,b):
@@ -207,4 +274,4 @@ def scalar_to_rgb(scalar_value, max_value):
 
 
 if __name__ == "__main__":
-    plot_tracks_realtime('tiny_drones.mp4')
+    plot_tracks_realtime('drone_on_background/GoPro_GH010763.mp4')

@@ -4,6 +4,7 @@ import threading
 import multiprocessing
 import time
 import math
+import tkinter as tk
 
 from filterpy.kalman import KalmanFilter
 from automatic_brightness import average_brightness
@@ -30,12 +31,6 @@ class ObjectTracker:
         self.save_output = False
 
         self.debug = False
-        # Frames for output
-        self.frame_original = None
-        self.frame_background_subtracted = None
-        self.frame_to_be_removed = None
-        self.frame_masked = None
-        self.frame_out = None
 
         # Global reference frame
         self.origin = [0, 0]
@@ -48,23 +43,22 @@ class ObjectTracker:
         self.fps_log = []
         self.fps = self.cap_fps
 
-        self.stop_process = True
         # Process for tracking loop
-        self.tracking_loop_process = None
+        # self.tracking_loop_process = None
         self.tracking_loop_thread = None
 
         # For manual brightness adjustment
         self.brightness_override = False
         self.brightness_threshold = 127
         # For ground removal tuning
-        self.ground_removal_override = False
+        self.noise_removal_dilation_iterations = 0
 
         self.good_tracks = []
 
     def setup_system_objects(self):
         # varThreshold affects the spottiness of the image. The lower it is, the more smaller spots.
         # The larger it is, these spots will combine into large foreground areas
-        fgbg = cv2.createBackgroundSubtractorMOG2(history=int(10 * self.cap_fps), varThreshold=64*self.cap_scaling,
+        fgbg = cv2.createBackgroundSubtractorMOG2(history=int(10 * self.fps), varThreshold=64*self.cap_scaling,
                                                   detectShadows=False)
         # Background ratio represents the fraction of the history a frame must be present
         # to be considered part of the background
@@ -82,10 +76,10 @@ class ObjectTracker:
 
         return fgbg, detector
 
-    def track_objects(self):
+    def track_objects(self, filename):
         self.stop_process = False
 
-        cap = cv2.VideoCapture(self.filename)
+        cap = cv2.VideoCapture(filename)
 
         videoWriter = None
         if self.recording:
@@ -109,8 +103,6 @@ class ObjectTracker:
                     self.fps_log.pop(0)
 
             ret, frame = cap.read()
-            self.frame_original = frame.copy()
-            # imshow_resized('original', frame)
 
             frame_start = time.time()
 
@@ -124,8 +116,8 @@ class ObjectTracker:
                 # elif self.frame_count >= 1:
                 #     # Frame stabilization
                 #     stabilized_frame, dx, dy = stabilize_frame(frame_before, frame)
-                #     self.origin[0] += int(dx)
-                #     self.origin[1] += int(dy)
+                #     self.origin[0] -= int(dx)
+                #     self.origin[1] -= int(dy)
                 #
                 #     frame_before = frame
                 #     frame = stabilized_frame
@@ -150,6 +142,9 @@ class ObjectTracker:
                 masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
                 self.good_tracks = self.filter_tracks(frame, masked)
 
+                imshow_resized('Tracks', frame)
+                if self.debug: ('Masked', masked)
+
                 other_track_stuff = time.time()
 
                 if self.recording:
@@ -173,11 +168,7 @@ class ObjectTracker:
 
                 self.frame_count += 1
 
-                # if cv2.waitKey(1) & 0xFF == ord('q'):
-                #     break
-
-                if self.stop_tracking():
-                    print('stopped')
+                if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
 
             else:
@@ -204,28 +195,22 @@ class ObjectTracker:
         # beta used to increase brightness, scale of (-255 to 255) ? Needs confirmation
         # formula is im_out = alpha * im_in + beta
         if not self.brightness_override:
-            masked = cv2.convertScaleAbs(frame, alpha=1, beta=256-average_brightness(16, frame, mask)+15)
+            gain=15
+            masked = cv2.convertScaleAbs(frame, alpha=1, beta=256-average_brightness(16, frame, mask)+gain)
         else:
             masked = cv2.convertScaleAbs(frame, alpha=1, beta=self.brightness_threshold)
             print(self.brightness_threshold)
+        if self.debug: imshow_resized('Brightness Adjusted', masked)
 
         # Subtract Background
         # Learning rate affects how often the model is updated
         # High values > 0.5 tend to lead to patchy output
         # Found that 0.1 - 0.3 is a good range
         masked = fgbg.apply(masked, learningRate=-1)
+        if self.debug: imshow_resized('Foreground mask', masked)
 
-        if self.debug:
-            self.frame_background_subtracted = masked.copy()
+        self.remove_ground(masked, int(13/(2.26/self.cap_scaling)), 0.7, frame)
 
-        masked = self.remove_ground(masked, int(13/(2.26/self.cap_scaling)), 0.7)
-
-        # Morphological Transforms
-        # Close to remove black spots
-        # masked = imclose(masked, 3, 1)
-        # Open to remove white holes
-        # masked = imopen(masked, 3, 2)
-        # masked = imfill(masked)
         kernel_dilation = np.ones((5, 5), np.uint8)
         masked = cv2.dilate(masked, kernel_dilation, iterations=2)
 
@@ -241,7 +226,7 @@ class ObjectTracker:
         sizes = np.zeros(n_keypoints)
         for i in range(n_keypoints):
             centroids[i] = keypoints[i].pt
-            centroids[i] -= self.origin
+            centroids[i] += self.origin
             sizes[i] = keypoints[i].size
 
         return masked, centroids, sizes
@@ -250,7 +235,7 @@ class ObjectTracker:
     # Identify background objects by their shape (non-circular)
     # Creates a copy of the input image which has the background contour filled in
     # Returns the filled image which has the background elements filled in
-    def remove_ground(self, im_in, dilation_iterations, background_contour_circularity):
+    def remove_ground(self, im_in, dilation_iterations, background_contour_circularity, frame):
         kernel_dilation = np.ones((5, 5), np.uint8)
         # Number of iterations determines how close objects need to be to be considered background
         dilated = cv2.dilate(im_in, kernel_dilation, iterations=dilation_iterations)
@@ -268,8 +253,10 @@ class ObjectTracker:
             # This bit is used to find a suitable level of dilation to remove background objects
             # while keeping objects to be detected
             # im_debug = cv2.cvtColor(im_in.copy(), cv2.COLOR_GRAY2BGR)
-            im_debug = self.frame_original.copy()
+            im_debug = frame.copy()
             cv2.drawContours(im_debug, background_contours, -1, (0, 255, 0), 3)
+
+            imshow_resized('To be removed', im_debug)
 
         im_out = im_in
         cv2.drawContours(im_out, background_contours, -1, 0, -1)
@@ -414,7 +401,8 @@ class ObjectTracker:
 
         self.tracks = [track for track in self.tracks if track not in tracks_to_be_removed]
 
-    # Detections not assigned an existing track are given their own track, initialized with the location of the detection
+    # Detections not assigned an existing track are given their own track,
+    # initialized with the location of the detection
     def create_new_tracks(self, unassigned_detections, centroids, sizes):
         for unassignedDetection in unassigned_detections:
             detection_idx = unassignedDetection[1]
@@ -466,7 +454,7 @@ class ObjectTracker:
 
                     good_tracks.append([track.id, track.age, size, (centroid[0], centroid[1])])
 
-                    centroid = track.kalmanFilter.x[:2] + self.origin
+                    centroid = track.kalmanFilter.x[:2] - self.origin
 
                     # Display filtered tracks
                     rect_top_left = (int(centroid[0] - size / 2), int(centroid[1] - size / 2))
@@ -481,26 +469,9 @@ class ObjectTracker:
                                 font, font_scale, colour, thickness, cv2.LINE_AA)
                     cv2.putText(masked, str(track.id), (rect_bottom_right[0], rect_top_left[1]),
                                 font, font_scale, colour, thickness, cv2.LINE_AA)
-        self.frame_original = frame
-        self.frame_masked = frame
 
         return good_tracks
 
-    def start_tracking(self):
-        # self.tracking_loop_process = multiprocessing.Process(target=self.track_objects, args=())
-        # self.tracking_loop_process.start()
-        self.tracking_loop_thread = threading.Thread(target=self.track_objects, args=())
-        self.tracking_loop_thread.start()
-
-    # frame retrieval methods
-    def get_original_output(self):
-        return self.frame_original
-
-    def get_masked_output(self):
-        return self.frame_masked
-
-    def stop_tracking(self):
-        return self.stop_process
 
 class Track:
     def __init__(self, track_id, size):
@@ -508,8 +479,6 @@ class Track:
         self.size = size
         # Constant Velocity Model
         self.kalmanFilter = KalmanFilter(dim_x=4, dim_z=2)
-        # # Constant Acceleration Model
-        # self.kalmanFilter = KalmanFilter(dim_x=6, dim_z=2)
         self.age = 1
         self.totalVisibleCount = 1
         self.consecutiveInvisibleCount = 0
