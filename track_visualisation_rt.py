@@ -274,4 +274,4 @@ def scalar_to_rgb(scalar_value, max_value):
 
 
 if __name__ == "__main__":
-    plot_tracks_realtime('drone_on_background/GoPro_GH010763.mp4')
+    plot_tracks_realtime('drone_on_background/Samsung_v2.mp4')

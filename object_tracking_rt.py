@@ -111,6 +111,9 @@ def track_objects_realtime(filename):
     next_id = 0
     tracks = []
 
+    frame = None
+    frame_before = None
+
     frame_count = 0
 
     fps_log = []
@@ -118,6 +121,8 @@ def track_objects_realtime(filename):
 
     origin = np.array([0, 0])
 
+    consecutive_dropped_frames = 0
+    max_tolerated_consecutive_dropped_frames = 5
     while cap.isOpened():
         if realtime:
             frame_end = time.time()
@@ -134,6 +139,7 @@ def track_objects_realtime(filename):
 
         if ret:
             print(frame_count)
+
             if downsample:
                 frame = downsample_image(frame)
             frame, mask = camera.undistort(frame)
@@ -155,57 +161,70 @@ def track_objects_realtime(filename):
 
             detection_time = time.time()
 
-            predict_new_locations_of_tracks(tracks)
-            prediction_time = time.time()
-
-            assignments, unassigned_tracks, unassigned_detections\
-                = detection_to_track_assignment(tracks, centroids, 10*SCALE_FACTOR)
-            assignment_time = time.time()
-
-            update_assigned_tracks(assignments, tracks, centroids, sizes)
-
-            update_unassigned_tracks(unassigned_tracks, tracks)
-            tracks = delete_lost_tracks(tracks)
-            next_id = create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes)
-
-            return_frame = frame.copy()
-            masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
-            good_tracks = filter_tracks(frame, masked, tracks, frame_count, origin)
-
-            other_track_stuff = time.time()
-
-            # recording.write(return_frame)
-
-            frame_out = np.zeros((FRAME_HEIGHT*2, FRAME_WIDTH, 3), dtype=np.uint8)
-            frame_out[0:FRAME_HEIGHT, 0:FRAME_WIDTH] = frame
-            frame_out[FRAME_HEIGHT:FRAME_HEIGHT*2, 0:FRAME_WIDTH] = masked
-            out_combined.write(frame_out)
-
-            imshow_resized('frame', frame)
-            imshow_resized('masked', masked)
-
-            display_time = time.time()
-
-            print(f"The frame took {(display_time - frame_start)*1000}ms in total.\n"
-                  f"Camera stabilization took {(calibration_time - frame_start)*1000}ms.\n"
-                  f"Object detection took {(detection_time - calibration_time)*1000}ms.\n"
-                  f"Prediction took {(prediction_time - detection_time)*1000}ms.\n"
-                  f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n"
-                  f"Other track stuff took {(other_track_stuff - assignment_time)*1000}ms.\n"
-                  f"Writing to file took {(display_time - other_track_stuff)*1000}ms.\n\n")
-
-            frame_count += 1
-
-            if not realtime:
-                frame_start = False
-
-            yield good_tracks, origin, frame_count, return_frame, frame_start
-
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+        else:  # Failed to read file
+            if consecutive_dropped_frames >= max_tolerated_consecutive_dropped_frames:
                 break
+            else:
+                consecutive_dropped_frames += 1
 
-        else:
+                # There is no frame, so we make do with the previous frame for visualization
+                # We still want it as a 3 channel image but in gray
+                frame = cv2.cvtColor(cv2.cvtColor(frame_before, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
+                # Empty array as the masked image
+                masked = np.zeros((FRAME_HEIGHT, FRAME_WIDTH), dtype=np.uint8)
+                # Empty data for detections
+                centroids = np.zeros((0, 2))
+                sizes = np.zeros(0)
+
+        predict_new_locations_of_tracks(tracks)
+        prediction_time = time.time()
+
+        assignments, unassigned_tracks, unassigned_detections\
+            = detection_to_track_assignment(tracks, centroids, 10*SCALE_FACTOR)
+        assignment_time = time.time()
+
+        update_assigned_tracks(assignments, tracks, centroids, sizes)
+
+        update_unassigned_tracks(unassigned_tracks, tracks)
+        tracks = delete_lost_tracks(tracks)
+        next_id = create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes)
+
+        return_frame = frame.copy()
+        masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
+        good_tracks = filter_tracks(frame, masked, tracks, frame_count, origin)
+
+        other_track_stuff = time.time()
+
+        # recording.write(return_frame)
+
+        frame_out = np.zeros((FRAME_HEIGHT*2, FRAME_WIDTH, 3), dtype=np.uint8)
+        frame_out[0:FRAME_HEIGHT, 0:FRAME_WIDTH] = frame
+        frame_out[FRAME_HEIGHT:FRAME_HEIGHT*2, 0:FRAME_WIDTH] = masked
+        out_combined.write(frame_out)
+
+        imshow_resized('frame', frame)
+        imshow_resized('masked', masked)
+
+        display_time = time.time()
+
+        print(f"The frame took {(display_time - frame_start)*1000}ms in total.\n"
+              f"Camera stabilization took {(calibration_time - frame_start)*1000}ms.\n"
+              f"Object detection took {(detection_time - calibration_time)*1000}ms.\n"
+              f"Prediction took {(prediction_time - detection_time)*1000}ms.\n"
+              f"Assignment took {(assignment_time - prediction_time)*1000}ms.\n"
+              f"Other track stuff took {(other_track_stuff - assignment_time)*1000}ms.\n"
+              f"Writing to file took {(display_time - other_track_stuff)*1000}ms.\n\n")
+
+        frame_count += 1
+
+        if not realtime:
+            frame_start = False
+
+        yield good_tracks, origin, frame_count, return_frame, frame_start
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+
 
     cap.release()
     # recording.release()
@@ -217,17 +236,19 @@ def track_objects_realtime(filename):
 # background subtractor object and blob detector objects for object detection
 # and VideoWriters for output videos
 def setup_system_objects():
-    # Background subtractor works by subtracting the history from the current frame.
-    # Further more this model already incldues guassian blur and morphological transformations
-    # varThreshold affects the spottiness of the image. The lower it is, the more smaller spots.
-    # The larger it is, these spots will combine into large foreground areas
-    fgbg = cv2.createBackgroundSubtractorMOG2(history=int(10*FPS), varThreshold=64 * SCALE_FACTOR,
-                                              detectShadows=False)
-    # Background ratio represents the fraction of the history a frame must be present
-    # to be considered part of the background
-    # eg. history is 5s, background ratio is 0.1, frames present for 0.5s will be considered background
-    fgbg.setBackgroundRatio(0.05)
-    fgbg.setNMixtures(5)
+    # # Background subtractor works by subtracting the history from the current frame.
+    # # Further more this model already incldues guassian blur and morphological transformations
+    # # varThreshold affects the spottiness of the image. The lower it is, the more smaller spots.
+    # # The larger it is, these spots will combine into large foreground areas
+    # fgbg = cv2.createBackgroundSubtractorMOG2(history=int(10*FPS), varThreshold=64*SCALE_FACTOR,
+    #                                           detectShadows=False)
+    # # Background ratio represents the fraction of the history a frame must be present
+    # # to be considered part of the background
+    # # eg. history is 5s, background ratio is 0.1, frames present for 0.5s will be considered background
+    # fgbg.setBackgroundRatio(0.05)
+    # fgbg.setNMixtures(5)
+
+    fgbg = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
 
     params = cv2.SimpleBlobDetector_Params()
     # params.filterByArea = True
@@ -295,7 +316,7 @@ def detect_objects(frame, mask, fgbg, detector, origin):
 
     n_keypoints = len(keypoints)
     centroids = np.zeros((n_keypoints, 2))
-    sizes = np.zeros(n_keypoints)
+    sizes = np.zeros((n_keypoints, 2))
     for i in range(n_keypoints):
         centroids[i] = keypoints[i].pt
         centroids[i] += origin
@@ -321,13 +342,13 @@ def detect_objects_large(frame, mask, fgbg, detector, origin):
 
     n_keypoints = len(contours)
     centroids = np.zeros((n_keypoints, 2))
-    sizes = np.zeros(n_keypoints)
+    sizes = np.zeros((n_keypoints,2))
     for i, contour in enumerate(contours):
         M = cv2.moments(contour)
         centroids[i] = [int(M['m10']/M['m00']), int(M['m01']/M['m00'])]
         centroids[i] += origin
         x, y, w, h = cv2.boundingRect(contour)
-        sizes[i] = max(w, h)
+        sizes[i] = (w, h)
 
     return centroids, sizes, masked
 
@@ -488,7 +509,6 @@ def create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes):
 
         track = Track(next_id, size)
 
-
         # Attempted tuning
         # # Constant velocity model
         # # Initial Location
@@ -539,14 +559,11 @@ def create_new_tracks(unassigned_detections, next_id, tracks, centroids, sizes):
 
 
 def filter_tracks(frame, masked, tracks, counter, origin):
-    # # Minimum number of frames to remove noise seems to be somewhere in the range of 30
-    # # Actually, I feel having both might be redundant together with the deletion criteria
-    # min_track_age = max(1.0 * FPS, 30)    # seconds * FPS to give number of frames in seconds
-    # # This has to be less than or equal to the minimum age or it make the minimum age redundant
-    # min_visible_count = max(1.0 * FPS, 30)
-
-    min_track_age = 0
-    min_visible_count = 0
+    # Minimum number of frames to remove noise seems to be somewhere in the range of 30
+    # Actually, I feel having both might be redundant together with the deletion criteria
+    min_track_age = max(1.0 * FPS, 30)    # seconds * FPS to give number of frames in seconds
+    # This has to be less than or equal to the minimum age or it make the minimum age redundant
+    min_visible_count = max(1.0 * FPS, 30)
 
     good_tracks = []
 
@@ -561,9 +578,11 @@ def filter_tracks(frame, masked, tracks, counter, origin):
                 centroid = track.kalmanFilter.x[:2] - origin
 
                 # Display filtered tracks
-                rect_top_left = (int(centroid[0] - size/2), int(centroid[1] - size/2))
-                rect_bottom_right = (int(centroid[0] + size/2), int(centroid[1] + size/2))
-                colour = (0, 0, 255)
+                rect_top_left = (int(centroid[0] - size[0]/2), int(centroid[1] - size[1]/2))
+                rect_bottom_right = (int(centroid[0] + size[0]/2), int(centroid[1] + size[1]/2))
+
+                colour = (0, 255, 0) if track.consecutiveInvisibleCount == 0 else (0, 0, 255)
+
                 thickness = 1
                 cv2.rectangle(frame, rect_top_left, rect_bottom_right, colour, thickness)
                 cv2.rectangle(masked, rect_top_left, rect_bottom_right, colour, thickness)
