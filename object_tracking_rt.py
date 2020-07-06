@@ -142,7 +142,9 @@ def track_objects_realtime(filename):
 
             if downsample:
                 frame = downsample_image(frame)
-            frame, mask = camera.undistort(frame)
+
+            # frame, mask = camera.undistort(frame)
+            mask = np.ones((FRAME_HEIGHT, FRAME_WIDTH), dtype=np.uint8) * 255
 
             if frame_count == 0:
                 frame_before = frame
@@ -156,8 +158,8 @@ def track_objects_realtime(filename):
                 frame = stabilized_frame
             calibration_time = time.time()
 
-            # centroids, sizes, masked = detect_objects(frame, mask, fgbg, detector, origin)
-            centroids, sizes, masked = detect_objects_large(frame, mask, fgbg, detector, origin)
+            centroids, sizes, masked = detect_objects(frame, mask, fgbg, detector, origin)
+            # centroids, sizes, masked = detect_objects_large(frame, mask, fgbg, detector, origin)
 
             detection_time = time.time()
 
@@ -236,19 +238,23 @@ def track_objects_realtime(filename):
 # background subtractor object and blob detector objects for object detection
 # and VideoWriters for output videos
 def setup_system_objects():
-    # # Background subtractor works by subtracting the history from the current frame.
-    # # Further more this model already incldues guassian blur and morphological transformations
-    # # varThreshold affects the spottiness of the image. The lower it is, the more smaller spots.
-    # # The larger it is, these spots will combine into large foreground areas
+    # Background subtractor works by subtracting the history from the current frame.
+    # Further more this model already incldues guassian blur and morphological transformations
+    # varThreshold affects the spottiness of the image. The lower it is, the more smaller spots.
+    # The larger it is, these spots will combine into large foreground areas
     # fgbg = cv2.createBackgroundSubtractorMOG2(history=int(10*FPS), varThreshold=64*SCALE_FACTOR,
     #                                           detectShadows=False)
-    # # Background ratio represents the fraction of the history a frame must be present
-    # # to be considered part of the background
-    # # eg. history is 5s, background ratio is 0.1, frames present for 0.5s will be considered background
-    # fgbg.setBackgroundRatio(0.05)
-    # fgbg.setNMixtures(5)
+    # A lower varThreshold results in more noise which is beneficial to ground subtraction (but detrimental if you want
+    # detections closer to the ground as there is more noise
+    fgbg = cv2.createBackgroundSubtractorMOG2(history=int(5*FPS), varThreshold=16/SCALE_FACTOR,
+                                              detectShadows=False)
+    # Background ratio represents the fraction of the history a frame must be present
+    # to be considered part of the background
+    # eg. history is 5s, background ratio is 0.1, frames present for 0.5s will be considered background
+    fgbg.setBackgroundRatio(0.05)
+    fgbg.setNMixtures(5)
 
-    fgbg = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
+    # fgbg = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
 
     params = cv2.SimpleBlobDetector_Params()
     # params.filterByArea = True
@@ -293,7 +299,7 @@ def detect_objects(frame, mask, fgbg, detector, origin):
 
     imshow_resized("background subtracted", masked)
 
-    masked = remove_ground(masked, int(13/(2.26/SCALE_FACTOR)), 0.7, frame)
+    masked = remove_ground(masked, int(13/(2.26/SCALE_FACTOR)), 0.6, frame)
 
     # Morphological Transforms
     # Close to remove black spots

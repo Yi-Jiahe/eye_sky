@@ -17,8 +17,8 @@ class CameraTest:
         # Prepare object points
         # This creates a 2-D set of regularly spaced points positioned in 3-D such that z=0
         # i.e. it assumes that the calibration pattern is regular and flat
-        objp = np.zeros((6 * 7, 3), np.float32)
-        objp[:, :2] = np.mgrid[0:7, 0:6].T.reshape(-1, 2)
+        objp = np.zeros((8 * 6, 3), np.float32)
+        objp[:, :2] = np.mgrid[0:6, 0:8].T.reshape(-1, 2)
 
         # Arrays to store object points and image points from all the images.
         objpoints = []  # 3d points of object in real world space (Its going to all be the same since we assume the same
@@ -26,12 +26,13 @@ class CameraTest:
         imgpoints = []  # 2d points in image plane
 
         for image in calibration_images:
+            image = 'calibration_images/Sony RX100III/' + image
             frame = cv2.imread(image)
 
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
             # Find chessboard
-            ret, corners = cv2.findChessboardCorners(gray, (7, 6), None)
+            ret, corners = cv2.findChessboardCorners(gray, (6, 8), None)
 
             if ret:
                 print('corners found')
@@ -44,7 +45,7 @@ class CameraTest:
 
                 print('done')
 
-                img = cv2.drawChessboardCorners(frame, (7, 6), corners_refined, ret)
+                img = cv2.drawChessboardCorners(frame, (6, 8), corners_refined, ret)
 
                 imshow_resized(image, img)
                 cv2.waitKey(500)
@@ -95,14 +96,35 @@ class CameraTest:
 
         imshow_resized("undistorted", dst)
 
+        cv2.waitKey(0)
 
-images = ['DJI_0022.JPG',
-          'DJI_0023.JPG',
-          'DJI_0024.JPG',
-          'DJI_0025.JPG',
-          'DJI_0027.JPG',
-          'DJI_0028.JPG',
-          'DJI_0029.JPG',
-          'DJI_0030.JPG',
-          'DJI_0031.JPG']
 
+if __name__ == '__main__':
+    # images = ['DSC00303.JPG',
+    #           'DSC00304.JPG',
+    #           'DSC00305.JPG',
+    #           'DSC00306.JPG',
+    #           'DSC00307.JPG',
+    #           'DSC00308.JPG',
+    #           'DSC00309.JPG',
+    #           'DSC00310.JPG',
+    #           'DSC00311.JPG',
+    #           'DSC00312.JPG',
+    #           'DSC00313.JPG',
+    #           'DSC00314.JPG']
+
+    images = ['00001.PNG',
+              '00002.PNG',
+              '00003.PNG',
+              '00004.PNG',
+              '00005.PNG',
+              '00006.PNG',
+              '00007.PNG',
+              '00008.PNG',
+              '00009.PNG',
+              '000010.PNG',
+              '000011.PNG',
+              '000012.PNG']
+
+    camera = CameraTest()
+    camera.calibrate_camera(images)

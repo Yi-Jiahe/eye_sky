@@ -244,7 +244,7 @@ def export_data_as_csv(track_plots):
                                           track_plot.ys[idx],
                                           track_plot.track_feature_variable[idx-2]])
 
-    with open('data_out.csv', 'w') as csvfile:
+    with open('data_out.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         for line in data:
             writer.writerow(line)
@@ -274,4 +274,4 @@ def scalar_to_rgb(scalar_value, max_value):
 
 
 if __name__ == "__main__":
-    plot_tracks_realtime('drone_on_background/Samsung_v2.mp4')
+    plot_tracks_realtime('videos/New Folder/DJI_0057.mp4')

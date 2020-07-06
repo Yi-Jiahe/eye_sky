@@ -149,7 +149,8 @@ def find_global_size(filename):
         if ret:
             # imshow_resized('original', frame)
 
-            frame, mask = camera.undistort(frame)
+            # frame, mask = camera.undistort(frame)
+            mask = np.ones((frame_height, frame_width), dtype=np.uint8) * 255
 
             # imshow_resized('corrected', frame)
             if frame_count == 0:
@@ -268,7 +269,8 @@ def produce_stabilized_video(filename, global_height, global_width, origin, tran
         ret, frame = cap.read()
 
         if ret:
-            frame, mask = camera.undistort(frame)
+            # frame, mask = camera.undistort(frame)
+            mask = np.ones((frame_height, frame_width), dtype=np.uint8) * 255
 
             if frame_count == 0:
                 pass
@@ -457,7 +459,7 @@ def create_mask_from_undistort_test(filename):
 if __name__ == '__main__':
     # stabilize_frame_standalone('panning_video.mp4')
 
-    filename, global_height, global_width, ORIGIN, transformations = find_global_size('bird_panning_left.mp4')
+    filename, global_height, global_width, ORIGIN, transformations = find_global_size('calibration_images/Sony RX100III/00010.MTS')
     print(f"Height:{global_height}, width: {global_width}")
     produce_stabilized_video(filename, global_height, global_width, ORIGIN, transformations)
 
