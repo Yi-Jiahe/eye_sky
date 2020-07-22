@@ -1,4 +1,5 @@
 from object_tracking_rt import track_objects_realtime, imshow_resized
+
 import math
 import numpy as np
 import cv2
@@ -274,4 +275,4 @@ def scalar_to_rgb(scalar_value, max_value):
 
 
 if __name__ == "__main__":
-    plot_tracks_realtime('videos/New Folder/DJI_0057.mp4')
+    plot_tracks_realtime('Binocular Camera/Trim_1/right.mp4')

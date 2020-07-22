@@ -12,8 +12,6 @@ from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
 from automatic_brightness import average_brightness
 
-from object_tracker import imopen
-
 
 class Track:
     def __init__(self, track_id, size):
@@ -26,6 +24,7 @@ class Track:
         self.age = 1
         self.totalVisibleCount = 1
         self.consecutiveInvisibleCount = 0
+
 
 # Dilates the image multiple times to get of noise in order to get a single large contour for each background object
 # Identify background objects by their shape (non-circular)
@@ -107,6 +106,7 @@ def track_objects_realtime(filename):
 
     camera = Camera((FRAME_WIDTH, FRAME_HEIGHT))
     fgbg, detector = setup_system_objects()
+    fgbg_near = setup_system_objects_near()
 
     next_id = 0
     tracks = []
@@ -158,8 +158,10 @@ def track_objects_realtime(filename):
                 frame = stabilized_frame
             calibration_time = time.time()
 
-            centroids, sizes, masked = detect_objects(frame, mask, fgbg, detector, origin)
-            # centroids, sizes, masked = detect_objects_large(frame, mask, fgbg, detector, origin)
+            centroids_far, sizes_far, masked = detect_objects(frame, mask, fgbg, detector, origin)
+            # centroids_near, sizes_near, masked = detect_objects_large(frame, mask, fgbg_near, origin)
+
+            centroids, sizes = centroids_far, sizes_far
 
             detection_time = time.time()
 
@@ -267,6 +269,12 @@ def setup_system_objects():
     return fgbg, detector
 
 
+def setup_system_objects_near():
+    fgbg = cv2.createBackgroundSubtractorMOG2(detectShadows=False)
+
+    return fgbg
+
+
 # Apply image masks to prepare frame for blob detection
 # Masks: 1) Increased contrast and brightness to fade out the sky and make objects stand out
 #        2) Background subtractor to remove the stationary background (Converts frame to a binary image)
@@ -331,7 +339,7 @@ def detect_objects(frame, mask, fgbg, detector, origin):
     return centroids, sizes, masked
 
 
-def detect_objects_large(frame, mask, fgbg, detector, origin):
+def detect_objects_large(frame, mask, fgbg, origin):
     masked = cv2.convertScaleAbs(frame, alpha=1, beta=0)
     gain = 15
     masked = cv2.convertScaleAbs(masked, alpha=1, beta=256-average_brightness(16, frame, mask)+gain)
