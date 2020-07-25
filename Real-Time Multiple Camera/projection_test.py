@@ -10,6 +10,10 @@ import tkinter as tk
 
 class UI:
     def __init__(self, cameras):
+        self.cameras = cameras
+        self.active_camera_no = 0
+        self.active_camera = self.cameras[self.active_camera_no]
+
         self.root = tk.Tk()
         self.root.bind('<Key>', self.control)
 
@@ -20,9 +24,14 @@ class UI:
                                                      "Tab to switch camera")
         self.instructions.pack()
 
-        self.cameras = cameras
-        self.active_camera_no = 0
-        self.active_camera = self.cameras[self.active_camera_no]
+        self.display = tk.Frame(self.root)
+        self.display.pack()
+        self.position_label = tk.Label(self.display, text=f"Position: {self.active_camera.position}")
+        self.position_label.pack()
+        self.f_label = tk.Label(self.display, text=f"Focal Length: {self.active_camera.f}")
+        self.f_label.pack()
+
+
 
     def control(self, key):
         if key.keysym == 'Up':
@@ -57,6 +66,9 @@ class UI:
 
         self.active_camera.update_projection_matrix()
 
+        self.position_label['text'] = f"Position: {self.active_camera.position}"
+        self.f_label['text'] = f"Focal Length: {self.active_camera.f}"
+
     def switch_active_camera(self):
         self.active_camera_no += 1
         if self.active_camera_no >= len(self.cameras):
@@ -65,7 +77,7 @@ class UI:
 
 
 class Camera:
-    def __init__(self, focal_length=1, resolution=(640, 480), rotation=(0, 0, 0), position=(0, 0, 0)):
+    def __init__(self, focal_length=1., resolution=(640, 480), rotation=(0., 0., 0.), position=(0., 0., 0.)):
         self.f = focal_length
         self.resolution = np.array(resolution)
         self.position = np.array(position)
@@ -122,7 +134,7 @@ class Camera:
         return x/w, y/w
 
     def projection_to_line(self, point_2D):
-        ws = np.linspace(1, -10, 2)
+        ws = np.linspace(self.f, -20, 2)
         Xs, Ys, Zs = [], [], []
         for w in ws:
             x, y = np.array(point_2D)*w
@@ -141,7 +153,8 @@ class Camera:
                    (0, 0))
         Xs, Ys, Zs = [], [], []
         for corner in corners:
-            X, Y, Z = np.linalg.inv(self.K) @ np.append(corner, 1)
+            x, y = np.array(corner)*self.f
+            X, Y, Z = np.linalg.inv(self.K) @ np.append((x, y), self.f)
             X, Y, Z, _ = np.linalg.inv(self.E) @ np.append([X, Y, Z], 1)
             Xs.append(X)
             Ys.append(Y)
@@ -149,21 +162,20 @@ class Camera:
         return Xs, Ys, Zs
 
 
-
 if __name__ == '__main__':
     object_colours = ('r', 'g', 'b')
 
-    cameras = (Camera(resolution=(1920, 1080)),
-               Camera(resolution=(640, 480)))
+    cameras = (Camera(focal_length=1., resolution=(640, 480), rotation=(0, 0, 0), position=(3, 1, 0)),
+               Camera(focal_length=.7, resolution=(640, 480), rotation=(0, 0, 0), position=(0, 1, 0)))
 
     ui = UI(cameras)
 
     fig_3d = plt.figure()
     ax_3d = fig_3d.add_subplot(projection='3d')
 
-    ax_3d.set_xlim(-2, 2)
-    ax_3d.set_ylim(-2, 2)
-    ax_3d.set_zlim(-2, 2)
+    ax_3d.set_xlim(-2, 6)
+    ax_3d.set_ylim(0, 10)
+    ax_3d.set_zlim(-20, 0)
 
     ax_3d.set_title('3D scene')
     ax_3d.set_xlabel('X')
@@ -192,7 +204,7 @@ if __name__ == '__main__':
 
     objects = []
     for i in range(2):
-        object = (np.random.random(), np.random.random(), -2)
+        object = (np.random.random()*2, abs(np.random.random()*10), -10)
         print(object)
         objects.append(object)
 
@@ -271,34 +283,7 @@ if __name__ == '__main__':
 
         print("Detections")
 
-
         for camera0, camera1 in itertools.combinations(cameras, 2):
-            # t_10 = camera1.position - camera0.position
-            # psi_10 = camera1.psi - camera0.psi
-            # theta_10 = camera1.theta - camera0.theta
-            # phi_10 = camera1.phi - camera0.phi
-            #
-            # R_roll = np.array([[1, 0, 0],
-            #                    [0, cos(psi_10), sin(psi_10)],
-            #                    [0, -sin(psi_10), cos(psi_10)]])
-            # R_pitch = np.array([[cos(theta_10), 0, -sin(theta_10)],
-            #                     [0, 1, 0],
-            #                     [sin(theta_10), 0, cos(theta_10)]])
-            # R_yaw = np.array([[cos(phi_10), sin(phi_10), 0],
-            #                   [-sin(phi_10), cos(phi_10), 0],
-            #                   [0, 0, 1]])
-            # R_10 = (R_roll @ R_pitch @ R_yaw)
-            # # print(R_10)
-            #
-            # R_10 = (camera1.R_c.T @ camera0.R_c)
-            # # print(R_10)
-            #
-            # A = camera0.K @ R_10.T @ t_10
-            # C = np.array([[0, -A[2], A[1]],
-            #               [A[2], 0, -A[0]],
-            #               [-A[1], A[0], 0]])
-            # F = np.linalg.inv(camera1.K).T @ R_10 @ camera0.K.T @ C
-
             A = camera1.P @ np.append(camera0.position, 1)
             C = np.array([[0, -A[2], A[1]],
                           [A[2], 0, -A[0]],

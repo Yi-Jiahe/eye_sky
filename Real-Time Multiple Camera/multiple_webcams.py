@@ -1,7 +1,9 @@
 import cv2
 import numpy as np
 import csv
+import itertools
 
+from numpy import sin, cos
 from filterpy.kalman import KalmanFilter
 from scipy.spatial import distance
 from scipy.optimize import linear_sum_assignment
@@ -10,11 +12,26 @@ from automatic_brightness import average_brightness
 from track_visualisation_rt import scalar_to_rgb
 
 class Camera:
-    def __init__(self, index):
+    def __init__(self, index, focal_length=1, resolution=(640, 480), rotation=(0, 0, 0), position=(0, 0, 0)):
         self.index = index
         self.cap = cv2.VideoCapture(self.index)
         self.recording = cv2.VideoWriter(f"recording_{self.index}.mp4", cv2.VideoWriter_fourcc(*'h264'),
                                          FPS, (FRAME_WIDTH, FRAME_HEIGHT))
+
+        self.f = focal_length
+        self.resolution = np.array(resolution)
+        self.position = np.array(position)
+        self.psi, self.theta, self.phi = rotation
+
+        self.f_x, self.f_y = None, None
+        self.c_x, self.c_y = None, None
+        self.K = None
+        self.R_c, self.C = None, None
+        self.E = None
+        self.P = None
+
+        self.update_projection_matrix()
+
         self.tracks = []
         self.origin = np.array([0, 0])
         self.next_id = 0
@@ -23,8 +40,40 @@ class Camera:
 
         self.output_log = []
 
+        self.good_tracks = []
+
         self.track_plots_ids = []
         self.track_plots = []
+
+    def update_projection_matrix(self):
+        self.f_x = -self.f*self.resolution[0]
+        self.f_y = -self.f*self.resolution[1]
+        self.c_x = self.resolution[0]/2
+        self.c_y = self.resolution[1]/2
+        self.K = np.array([[self.f_x, 0, self.c_x],
+                           [0, -self.f_y, self.c_y],
+                           [0, 0, 1]])
+        R_roll = np.array([[1, 0, 0],
+                           [0, cos(self.psi), sin(self.psi)],
+                           [0, -sin(self.psi), cos(self.psi)]])
+        R_pitch = np.array([[cos(self.theta), 0, -sin(self.theta)],
+                            [0, 1, 0],
+                            [sin(self.theta), 0, cos(self.theta)]])
+        R_yaw = np.array([[cos(self.phi), sin(self.phi), 0],
+                          [-sin(self.phi), cos(self.phi), 0],
+                          [0, 0, 1]])
+        R = R_roll @ R_pitch @ R_yaw
+        self.R_c = R.T
+        self.C = np.array(self.position)
+        E_inv = np.zeros((4, 4))
+        E_inv[3, 3] = 1
+        E_inv[:3, :3] = self.R_c
+        E_inv[:3, 3] = self.C.T
+        self.E = np.linalg.inv(E_inv)
+
+        self.P = self.K @ np.array([[1, 0, 0, 0],
+                                    [0, 1, 0, 0],
+                                    [0, 0, 1, 0]]) @ self.E
 
     def init_fgbg(self):
         self.fgbg = cv2.createBackgroundSubtractorMOG2(history=int(5 * FPS), varThreshold=256 / SCALE_FACTOR,
@@ -369,36 +418,6 @@ class TrackPlot():
 
 if __name__ == '__main__':
 
-    # f_x0 = 540
-    # f_y0 = 540
-    # c_x0 = 640/2
-    # c_y0 = 480/2
-    # K_0 = np.array([[f_x0, 0, c_x0],
-    #                 [0, f_y0, c_y0],
-    #                 [0, 0, 1]])
-    #
-    # R_c0 = np.array([[1, 0, 0],
-    #                 [0, 1, 0],
-    #                 [0, 0, 1]])
-    # C_0 = np.array([[0, 0, 0]])
-    # E_0 = np.concatenate((R_c0.T, -np.matmul(R_c0.T, C_0)), axis=1)
-    # P_0 = np.matmul(K_0, E_0)
-    #
-    # f_x1 = 540
-    # f_y1 = 540
-    # c_x1 = 640/2
-    # c_y1 = 480/2
-    # K_1 = np.array([[f_x1, 0, c_x1],
-    #                 [0, f_y1, c_y1],
-    #                 [0, 0, 1]])
-    # R_c1 = np.array([[1, 0, 0],
-    #                 [0, 1, 0],
-    #                 [0, 0, 1]])
-    # C_1 = np.array([[1, 0, 0]])
-    # E_1 = np.concatenate((R_c1.T, -np.matmul(R_c1.T, C_1)), axis=1)
-    # P_1 = np.matmul(K_1, E_1)
-
-
     # Assume all webcams are 30 FPS and 640x480
     # Can be changed later for a more accurate set-up
     global FPS, FRAME_WIDTH, FRAME_HEIGHT, SCALE_FACTOR
@@ -408,12 +427,17 @@ if __name__ == '__main__':
     SCALE_FACTOR = 0.8209970330862828
 
     camera_indices = [0, 3]
+    camera_parameters = ((3, (640, 480), (0, 0, 0), (3, 1, 0)),
+                         (2, (640, 480), (0, 0, 0), (0, 1, 0)))
 
     # Sort through which indices are valid streams
     cameras = []
     recordings = []
-    for index in camera_indices:
-        camera = Camera(index)
+    for i, index in enumerate(camera_indices):
+
+        focal_length, resolution, rotation, position = camera_parameters[i]
+
+        camera = Camera(index, focal_length=focal_length, resolution=resolution, rotation=rotation, position=position)
 
         ret, frame = camera.cap.read()
         if ret:
@@ -459,13 +483,13 @@ if __name__ == '__main__':
 
             return_frame = frame.copy()
             masked = cv2.cvtColor(masked, cv2.COLOR_GRAY2BGR)
-            good_tracks = filter_tracks(frame, masked, camera.tracks, frame_count, camera.origin)
+            camera.good_tracks = filter_tracks(frame, masked, camera.tracks, frame_count, camera.origin)
 
             # cv2.imshow(f"Original {index}", frame)
             cv2.imshow(f"Masked {index}", masked)
 
             camera.output_log.append([frame_count])
-            for track in good_tracks:
+            for track in camera.good_tracks:
                 track_id = track[0]
                 centroid_x, centroid_y = track[3]
                 camera.output_log[frame_count].extend([track_id, centroid_x, centroid_y])
@@ -489,7 +513,30 @@ if __name__ == '__main__':
                                 (track_plot.xs[idx]-camera.origin[0], track_plot.ys[idx]-camera.origin[1]+15),
                                 font, font_scale, (0, 0, 255), 1, cv2.LINE_AA)
 
-        cv2.imshow(f"Plot {index}", frame)
+            cv2.imshow(f"Plot {index}", frame)
+
+        for camera0, camera1 in itertools.combinations(cameras, 2):
+            A = camera1.P @ np.append(camera0.position, 1)
+            C = np.array([[0, -A[2], A[1]],
+                          [A[2], 0, -A[0]],
+                          [-A[1], A[0], 0]])
+            F = C @ camera1.P @ np.linalg.pinv(camera0.P)
+
+            for track0 in camera0.good_tracks:
+                id0 = track0[0]
+                x0, y0 = track0[3]
+                for track1 in camera1.good_tracks:
+                    id1 = track1[1]
+                    x1, y1 = track1[3]
+
+                    something = np.append((x1, y1), 1) @ F @ np.append((x0, y0), 1)
+                    if np.abs(something) < 100:
+                        point_3D = cv2.triangulatePoints(camera0.P, camera1.P, (x0, y0), (x1, y1))
+
+                        W = point_3D[3][0]
+                        X, Y, Z = point_3D[0][0]/W, point_3D[1][0]/W, point_3D[2][0]/W
+
+                        print(f"{id0}, {id1}: X:{X:.2f}, Y:{Y:.2f}, Z:{Z:.2f}")
 
         frame_count += 1
 
