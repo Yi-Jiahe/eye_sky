@@ -26,13 +26,14 @@ Transfer
 
 calibration_images
 
-
+# output #
+##########
+*.csv
 
 
 
 # Other folders #
 #################
-
 venv
 .idea
 __pycache__

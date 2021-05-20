@@ -275,4 +275,4 @@ def scalar_to_rgb(scalar_value, max_value):
 
 
 if __name__ == "__main__":
-    plot_tracks_realtime('Binocular Camera/Trim_1/right.mp4')
+    plot_tracks_realtime('recording_0 (3).mp4')
